@@ -31,7 +31,7 @@ export default function App() {
         </Route>
         <Route element={<MerchantShell />}>
           <Route
-            index
+            path="/dashboard"
             element={
               <RequireOnboarding>
                 <DashboardPage />
@@ -39,7 +39,7 @@ export default function App() {
             }
           />
           <Route
-            path="payment-link/:paymentId"
+            path="/payment-link/:paymentId"
             element={
               <RequireOnboarding>
                 <PaymentLinkPage />
@@ -47,7 +47,7 @@ export default function App() {
             }
           />
           <Route
-            path="payments/:paymentId"
+            path="/payments/:paymentId"
             element={
               <RequireOnboarding>
                 <PaymentDetailsPage />
