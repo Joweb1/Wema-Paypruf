@@ -1,0 +1,42 @@
+[
+  {
+    "scenario": "confirmed",
+    "reference": "PAYPRUF-DEMO-001",
+    "amount": "25,000.00",
+    "sender": "Chinedu Okafor",
+    "status": "Successful",
+    "time": "17:42:00",
+    "filename": "receipt_confirmed_001.png",
+    "mime_type": "image/png"
+  },
+  {
+    "scenario": "mismatch",
+    "reference": "PAYPRUF-DEMO-002",
+    "amount": "25,000.00",
+    "sender": "Aisha Bello",
+    "status": "Successful",
+    "time": "17:48:00",
+    "filename": "receipt_mismatch_002.png",
+    "mime_type": "image/png"
+  },
+  {
+    "scenario": "not-received",
+    "reference": "PAYPRUF-DEMO-003",
+    "amount": "15,000.00",
+    "sender": "Tolu Adeyemi",
+    "status": "Successful",
+    "time": "17:54:00",
+    "filename": "receipt_not_received_003.png",
+    "mime_type": "image/png"
+  },
+  {
+    "scenario": "pending",
+    "reference": "PAYPRUF-DEMO-004",
+    "amount": "30,000.00",
+    "sender": "Ife Obi",
+    "status": "Processing",
+    "time": "18:02:00",
+    "filename": "receipt_pending_004.png",
+    "mime_type": "image/png"
+  }
+]
