@@ -1,0 +1,24 @@
+# --- Secrets (NEVER commit) ---
+.env
+.env.*
+*.serviceAccountKey.json
+**/serviceAccountKey.json
+*-firebase-adminsdk*.json
+firebase-service-account*.json
+firebase-frontend-config.json
+
+# --- Python ---
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+*.egg-info/
+
+# --- Flask / app ---
+flask.log
+
+# --- OS / editor ---
+.DS_Store
+.idea/
+.vscode/
+*.swp

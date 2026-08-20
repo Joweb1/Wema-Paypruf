@@ -1,0 +1,17 @@
+# Virtual environment
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Environment / secrets
+.env
+.env.local
+**/serviceAccountKey.json
+*-firebase-*.json
+firebase-frontend-config.json
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
