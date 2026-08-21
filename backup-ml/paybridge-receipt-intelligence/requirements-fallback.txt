@@ -1,0 +1,8 @@
+# OPTIONAL local-OCR fallback (offline resilience during judging).
+# This ALSO needs the Tesseract binary on the system:
+#   Windows installer: https://github.com/UB-Mannheim/tesseract/wiki
+#   then set TESSERACT_CMD in .env to the tesseract.exe path.
+# Do NOT install unless you enable the fallback path.
+pytesseract>=0.3.10
+opencv-python-headless>=4.10.0
+numpy>=1.26.0

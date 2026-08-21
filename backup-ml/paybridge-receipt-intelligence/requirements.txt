@@ -1,0 +1,24 @@
+# PayBridge Receipt Intelligence — core requirements
+# Install:  pip install -r requirements.txt
+
+# --- Web API ---
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9      # FastAPI file uploads
+
+# --- Data models ---
+pydantic>=2.7.0
+
+# --- Image handling ---
+Pillow>=10.3.0
+
+# --- Vision extraction (PRIMARY path) ---
+# google-genai = the unified Google Gen AI SDK (Gemini 2.0 Flash, etc.)
+# import as: from google import genai
+google-genai>=0.1.0
+
+# --- Config ---
+python-dotenv>=1.0.1
+
+# --- HTTP client (Gemini retry/backoff + FastAPI TestClient share this) ---
+httpx>=0.27.0
