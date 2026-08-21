@@ -1,0 +1,10 @@
+{
+  "//": "Firebase Client-Side (JS SDK) config for the React FRONTEND. Safe to bundle in the app.",
+  "apiKey": "AIzaSyBX1la0N60f48Bxto-gAEl_Etpox3-WFs4",
+  "authDomain": "wema-paypruf.firebaseapp.com",
+  "projectId": "wema-paypruf",
+  "storageBucket": "wema-paypruf.firebasestorage.app",
+  "messagingSenderId": "541224335302",
+  "appId": "1:541224335302:web:38ebc41e76aced0f80a4c7",
+  "measurementId": "G-HPHXWRLQ0Z"
+}

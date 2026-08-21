@@ -1,0 +1,6 @@
+{
+  "name": "Paypruf Payment Verification Dashboard",
+  "description": "Enterprise payment verification and receipt ML confidence audit system with merchant dashboard, public checkout portal, and automated status matching.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
