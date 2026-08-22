@@ -1,9 +1,35 @@
+# Dependencies
 node_modules/
+.venv/
+venv/
+env/
+
+# Build artifacts
 build/
 dist/
 coverage/
-.DS_Store
-*.log
+.coverage
+.pytest_cache/
+__pycache__/
+*.py[cod]
+
+# Environment files
 .env*
 !.env.example
-backend/serviceAccountKey.json
+!frontend/.env.example
+!fastapi-backend/.env.example
+
+# Runtime databases & local media uploads
+*.db
+*.sqlite
+*.sqlite3
+fastapi-backend/data/*.db
+fastapi-backend/uploads/receipts/*
+!fastapi-backend/uploads/receipts/.gitkeep
+
+# System & IDE
+.DS_Store
+*.log
+.claude/
+.idea/
+.vscode/
