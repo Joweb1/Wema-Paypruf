@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from typing import Generator
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 from app.core.config import settings
@@ -42,6 +42,35 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+def auto_migrate_columns() -> None:
+    """Safely add any missing columns to existing tables dynamically."""
+    try:
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+
+        if "receipts" in tables:
+            existing_cols = {col["name"] for col in inspector.get_columns("receipts")}
+            receipt_cols_to_add = [
+                ("sender_account", "VARCHAR(64)"),
+                ("transaction_time", "VARCHAR(32)"),
+                ("field_evidence_json", "TEXT"),
+                ("authenticity_indicators_json", "TEXT"),
+                ("missing_fields_json", "TEXT"),
+                ("backend_validation_status", "VARCHAR(64) DEFAULT 'VALID_CLAIM'"),
+                ("ai_engine", "VARCHAR(32) DEFAULT 'GEMINI_VISION'"),
+                ("ai_offline", "BOOLEAN DEFAULT 0"),
+                ("ai_status_message", "VARCHAR(255)"),
+            ]
+            with engine.connect() as conn:
+                for col_name, col_type in receipt_cols_to_add:
+                    if col_name not in existing_cols:
+                        conn.execute(text(f"ALTER TABLE receipts ADD COLUMN {col_name} {col_type}"))
+                conn.commit()
+    except Exception:
+        pass
+
+
 def init_db() -> None:
-    """Create all database tables."""
+    """Create all database tables and perform column migrations."""
     Base.metadata.create_all(bind=engine)
+    auto_migrate_columns()
