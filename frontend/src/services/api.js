@@ -299,6 +299,18 @@ export const api = {
     return data;
   },
 
+  async uploadDirectReceipt(accountName, file) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const encodedName = encodeURIComponent(accountName || "");
+    const data = await request(`/public/receipt-upload/direct?accountName=${encodedName}`, {
+      method: "POST",
+      body: formData,
+    });
+    return data;
+  },
+
   async verifyPublicPayment(token) {
     const data = await request(`/public/pay/${token}/verify`, {
       method: "POST",

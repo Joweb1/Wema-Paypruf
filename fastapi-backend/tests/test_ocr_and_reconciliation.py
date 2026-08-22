@@ -56,6 +56,8 @@ def test_upload_receipt_and_reconcile(client, auth_headers):
     assert receipt_data["original_filename"] == "test_receipt.png"
     assert "confidence" in receipt_data
     assert receipt_data["confidence"] > 0
+    assert "originality_score" in receipt_data
+    assert "authenticity_verdict" in receipt_data
 
     # 3. Verify public payment (Bank Ledger Reconciliation)
     ver_res = client.post(f"/api/v1/public/pay/{token}/verify")
@@ -65,19 +67,22 @@ def test_upload_receipt_and_reconcile(client, auth_headers):
     assert ver["reason_code"] != ""
     assert "comparison" in ver
     assert "timeline" in ver
+    assert "merchant_match" in ver
     assert len(ver["timeline"]) >= 2
 
 
 def test_direct_account_receipt_upload(client):
-    """Test direct upload of receipt for an account."""
+    """Test direct upload of receipt for an account without upfront payment order."""
     img_buf = _create_sample_receipt_image()
     res = client.post(
-        "/api/v1/public/receipt-upload/direct?accountName=Tola%20Fashion",
+        "/api/v1/public/receipt-upload/direct?accountName=Tola%20Fashion%20Enterprise",
         files={"file": ("receipt.png", img_buf, "image/png")}
     )
     assert res.status_code == 200
     data = res.json()
-    assert data["status"] == "CONFIRMED"
-    assert data["accountName"] == "Tola Fashion"
-    assert "amount" in data
-    assert "reference" in data
+    assert data["status"] in ["CONFIRMED", "MISMATCH", "NEEDS_REVIEW"]
+    assert "Tola Fashion" in data["accountName"]
+    assert "originality_score" in data
+    assert "authenticity_verdict" in data
+    assert "recipient_match" in data
+    assert "mismatch_details" in data

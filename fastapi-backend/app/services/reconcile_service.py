@@ -9,6 +9,7 @@ Enforces strict 3-Layer Security Boundary:
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Tuple
@@ -20,6 +21,70 @@ from app.models.user import User
 
 class ReconcileService:
     """Performs deterministic reconciliation against Wema Bank transaction records."""
+
+    def _check_merchant_match(
+        self,
+        receipt: Optional[Receipt],
+        merchant: Optional[User]
+    ) -> Tuple[bool, Optional[str], Optional[str]]:
+        """Check if the receipt's recipient name/account matches the merchant.
+        Returns (is_match, expected_merchant_name, receipt_recipient_name).
+        """
+        if not merchant:
+            return True, None, receipt.recipient_name if receipt else None
+
+        expected_names = []
+        if merchant.business_name and merchant.business_name.strip():
+            expected_names.append(merchant.business_name.strip())
+        if merchant.account_name and merchant.account_name.strip():
+            expected_names.append(merchant.account_name.strip())
+        if merchant.full_name and merchant.full_name.strip():
+            expected_names.append(merchant.full_name.strip())
+
+        expected_display = merchant.business_name or merchant.account_name or merchant.full_name or "Merchant Account"
+
+        if not receipt or not receipt.recipient_name:
+            # If recipient name is missing, check account number hint
+            if receipt and receipt.account_hint and merchant.wema_account_number:
+                clean_rec_acc = re.sub(r"\D", "", receipt.account_hint)
+                clean_mch_acc = re.sub(r"\D", "", merchant.wema_account_number)
+                if clean_rec_acc and clean_mch_acc and (clean_rec_acc in clean_mch_acc or clean_mch_acc in clean_rec_acc):
+                    return True, expected_display, receipt.recipient_name or f"Account {clean_rec_acc}"
+            return True, expected_display, None
+
+        receipt_recipient = receipt.recipient_name.strip()
+
+        # Token extraction helper
+        def normalize_tokens(s: str) -> set[str]:
+            cleaned = re.sub(r"[^a-zA-Z0-9\s]", " ", s.lower())
+            tokens = {
+                t for t in cleaned.split()
+                if len(t) > 2 and t not in {
+                    "ltd", "limited", "enterprise", "ent", "plc", "bank", "ventures",
+                    "services", "nig", "nigeria", "and", "the", "for", "wema"
+                }
+            }
+            return tokens
+
+        rec_tokens = normalize_tokens(receipt_recipient)
+
+        for exp_name in expected_names:
+            exp_tokens = normalize_tokens(exp_name)
+            # 1. Substring containment
+            if exp_name.lower() in receipt_recipient.lower() or receipt_recipient.lower() in exp_name.lower():
+                return True, expected_display, receipt_recipient
+            # 2. Token overlap: If at least 1 significant token matches (e.g. "Tola" or "Fashion")
+            if rec_tokens and exp_tokens and (rec_tokens & exp_tokens):
+                return True, expected_display, receipt_recipient
+
+        # 3. Account number match fallback
+        if receipt.account_hint and merchant.wema_account_number:
+            clean_rec_acc = re.sub(r"\D", "", receipt.account_hint)
+            clean_mch_acc = re.sub(r"\D", "", merchant.wema_account_number)
+            if clean_rec_acc and clean_mch_acc and (clean_rec_acc in clean_mch_acc or clean_mch_acc in clean_rec_acc):
+                return True, expected_display, receipt_recipient
+
+        return False, expected_display, receipt_recipient
 
     def reconcile_payment(
         self,
@@ -70,6 +135,8 @@ class ReconcileService:
                     date_match=False,
                     received_amount=None,
                     provider_ref=receipt.reference,
+                    expected_merchant=merchant.business_name if merchant else None,
+                    receipt_recipient=receipt.recipient_name,
                     now_iso=now_iso,
                 )
 
@@ -95,14 +162,24 @@ class ReconcileService:
                 date_match=False,
                 received_amount=None,
                 provider_ref=None,
+                expected_merchant=merchant.business_name if merchant else None,
+                receipt_recipient=receipt.recipient_name if receipt else None,
                 now_iso=now_iso,
             )
 
         if receipt_validation_status == "INVALID_RECEIPT":
-            status = "MISMATCH"
-            reason_code = "INVALID_BANK_SLIP"
-            reason = "The uploaded document is from an unrecognized or unsupported financial provider."
-            status_reason = "Receipt structure failed banking registry validation rules."
+            tampering = receipt.tampering_detected if receipt else False
+            verdict = receipt.authenticity_verdict if receipt else "INVALID"
+            if tampering or verdict == "LIKELY_ALTERED":
+                status = "MISMATCH"
+                reason_code = "RECEIPT_ALTERED_OR_TAMPERED"
+                reason = "AI Forensics Alert: Visual tampering, edited typography, or altered numbers detected on receipt."
+                status_reason = "Receipt rejected due to suspected image alteration or forgery."
+            else:
+                status = "MISMATCH"
+                reason_code = "INVALID_BANK_SLIP"
+                reason = "The uploaded document is from an unrecognized or unsupported financial provider."
+                status_reason = "Receipt structure failed banking registry validation rules."
 
             return self._upsert_verification(
                 db=db,
@@ -119,6 +196,8 @@ class ReconcileService:
                 date_match=False,
                 received_amount=None,
                 provider_ref=receipt.reference if receipt else None,
+                expected_merchant=merchant.business_name if merchant else None,
+                receipt_recipient=receipt.recipient_name if receipt else None,
                 now_iso=now_iso,
             )
 
@@ -145,7 +224,7 @@ class ReconcileService:
                 receipt.reference if (receipt and receipt.reference)
                 else f"NIP/WEMA/{datetime.now().strftime('%Y%m%d%H%M%S')}"
             )
-            
+
             transaction = BankTransaction(
                 payment_id=payment.id,
                 provider="WEMA_NIP",
@@ -168,9 +247,9 @@ class ReconcileService:
 
         # 5-Point Matching Checks
         amount_match = (receipt_amt == expected_amt == received_amt) if receipt_amt is not None else (expected_amt == received_amt)
+        merchant_match, exp_mch_name, rec_recip_name = self._check_merchant_match(receipt, merchant)
         reference_match = True
         currency_match = (payment.currency == "NGN" and (receipt.currency == "NGN" if receipt else True))
-        merchant_match = True
         date_match = True
 
         # Scenario overrides
@@ -189,17 +268,34 @@ class ReconcileService:
             reason_code = "PROCESSING_SETTLEMENT"
             reason = "Receipt details successfully captured. Interbank NIP settlement is still in progress."
             status_reason = f"Customer uploaded receipt for ₦{payment.amount}. Bank transfer confirmation is currently processing."
+        elif receipt and (receipt.tampering_detected or receipt.authenticity_verdict == "LIKELY_ALTERED"):
+            status = "MISMATCH"
+            reason_code = "RECEIPT_ALTERED_OR_TAMPERED"
+            orig_pct = f"{receipt.originality_score * 100:.0f}%" if receipt.originality_score else "Low"
+            reason = f"AI Forensics Alert: Visual tampering or edited typography detected on receipt. Originality rating: {orig_pct}."
+            status_reason = "Receipt rejected due to suspected character editing or altered figures."
+        elif not amount_match and not merchant_match:
+            status = "MISMATCH"
+            reason_code = "AMOUNT_AND_RECIPIENT_MISMATCH"
+            r_str = f"₦{receipt_amt:,.2f}" if receipt_amt else "unspecified"
+            reason = f"Multiple Discrepancies: Expected ₦{expected_amt:,.2f} to '{exp_mch_name}', but receipt claims {r_str} paid to '{rec_recip_name}'."
+            status_reason = f"Both transfer amount ({r_str} vs ₦{expected_amt:,.2f}) and beneficiary ('{rec_recip_name}' vs '{exp_mch_name}') mismatched."
         elif not amount_match:
             status = "MISMATCH"
             reason_code = "AMOUNT_UNDERPAID" if (receipt_amt and receipt_amt < expected_amt) else "AMOUNT_DISCREPANCY"
             r_str = f"₦{receipt_amt:,.2f}" if receipt_amt else "unspecified"
             reason = f"Amount discrepancy: expected ₦{expected_amt:,.2f} but received {r_str}."
             status_reason = f"Receipt uploaded was for {r_str} instead of requested ₦{expected_amt:,.2f}."
+        elif not merchant_match:
+            status = "MISMATCH"
+            reason_code = "RECIPIENT_MISMATCH"
+            reason = f"Recipient Mismatch: Receipt was paid to '{rec_recip_name}', but expected merchant account is '{exp_mch_name}'."
+            status_reason = f"Receipt beneficiary '{rec_recip_name}' does not match registered merchant '{exp_mch_name}'."
         else:
             status = "CONFIRMED"
             reason_code = "MATCH_EXACT"
-            reason = "Payment verified. Receipt amount, merchant bank credit, and reference match completely."
-            status_reason = f"Matched with incoming Wema NIP credit of ₦{expected_amt:,.2f} from {payment.customer_name}."
+            reason = f"Payment verified. Receipt amount (₦{expected_amt:,.2f}), merchant account ('{exp_mch_name}'), and bank ledger match completely."
+            status_reason = f"Matched with incoming Wema NIP credit of ₦{expected_amt:,.2f} to {exp_mch_name}."
 
         return self._upsert_verification(
             db=db,
@@ -216,6 +312,8 @@ class ReconcileService:
             date_match=date_match,
             received_amount=str(received_amt) if status != "NOT_RECEIVED" else None,
             provider_ref=transaction.provider_reference if status != "NOT_RECEIVED" else None,
+            expected_merchant=exp_mch_name,
+            receipt_recipient=rec_recip_name,
             now_iso=now_iso,
         )
 
@@ -235,6 +333,8 @@ class ReconcileService:
         date_match: bool,
         received_amount: Optional[str],
         provider_ref: Optional[str],
+        expected_merchant: Optional[str],
+        receipt_recipient: Optional[str],
         now_iso: str,
     ) -> Verification:
         """Construct comparison matrix, audit timeline, and upsert verification record."""
@@ -245,8 +345,15 @@ class ReconcileService:
             "expected_amount": expected_amt,
             "receipt_amount": receipt_amt,
             "received_amount": received_amount,
+            "amount_match": amount_match,
+            "expected_merchant_name": expected_merchant,
+            "receipt_recipient_name": receipt_recipient,
+            "merchant_match": merchant_match,
             "receipt_reference": receipt.reference if receipt else payment.reference,
             "transaction_reference": provider_ref,
+            "originality_score": receipt.originality_score if receipt else 0.95,
+            "authenticity_verdict": receipt.authenticity_verdict if receipt else "GENUINE",
+            "tampering_detected": receipt.tampering_detected if receipt else False,
         }
 
         timeline = [
@@ -264,14 +371,14 @@ class ReconcileService:
                 "state": "complete",
             })
             timeline.append({
-                "title": "Backend rules validated structure & reference",
+                "title": "Backend rules & AI Forensics validated authenticity",
                 "timestamp": now_iso,
                 "state": "complete" if receipt.backend_validation_status == "VALID_CLAIM" else "error",
             })
 
         if status == "CONFIRMED":
             timeline.append({
-                "title": "Merchant ledger matched (Wema sandbox)",
+                "title": "Merchant ledger & beneficiary verified (Wema sandbox)",
                 "timestamp": now_iso,
                 "state": "complete",
             })

@@ -174,7 +174,7 @@ export function VerificationPage() {
 
           <div className="amount-comparison">
             <div>
-              <span>Requested</span>
+              <span>Requested Amount</span>
               <strong>
                 {formatMoney(verification.comparison.expected_amount)}
               </strong>
@@ -201,6 +201,62 @@ export function VerificationPage() {
             </div>
           </div>
 
+          {/* Beneficiary & Forensics Comparison Grid */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+              gap: "16px",
+              marginTop: "16px",
+              padding: "16px",
+              background: "#f9fafb",
+              borderRadius: "12px",
+              border: "1px solid #e5e7eb",
+            }}
+          >
+            <div>
+              <span style={{ fontSize: "0.75rem", color: "#6b7280", display: "block" }}>
+                Target Merchant Beneficiary:
+              </span>
+              <strong style={{ fontSize: "0.95rem", color: "#111827" }}>
+                {verification.comparison.expected_merchant_name || merchant.business_name}
+              </strong>
+            </div>
+            <div>
+              <span style={{ fontSize: "0.75rem", color: "#6b7280", display: "block" }}>
+                Receipt Extracted Beneficiary:
+              </span>
+              <strong
+                style={{
+                  fontSize: "0.95rem",
+                  color: verification.merchant_match ? "#059669" : "#dc2626",
+                }}
+              >
+                {verification.comparison.receipt_recipient_name || "Unspecified"}
+                {!verification.merchant_match && " (MISMATCH)"}
+              </strong>
+            </div>
+            {verification.comparison.originality_score !== undefined && (
+              <div>
+                <span style={{ fontSize: "0.75rem", color: "#6b7280", display: "block" }}>
+                  AI Originality Rating:
+                </span>
+                <strong
+                  style={{
+                    fontSize: "0.95rem",
+                    color:
+                      verification.comparison.originality_score >= 0.85
+                        ? "#059669"
+                        : "#d97706",
+                  }}
+                >
+                  {(verification.comparison.originality_score * 100).toFixed(0)}% ·{" "}
+                  {verification.comparison.authenticity_verdict || "GENUINE"}
+                </strong>
+              </div>
+            )}
+          </div>
+
           <div className="result-lower-grid">
             <section className="result-checks">
               <h2>Verification Checks</h2>
@@ -214,6 +270,17 @@ export function VerificationPage() {
                   <span>Amount check</span>
                   <strong>
                     {verification.amount_match ? "MATCH" : "FLAGGED"}
+                  </strong>
+                </li>
+                <li
+                  className={
+                    verification.merchant_match ? "match-yes" : "match-no"
+                  }
+                >
+                  <Check size={14} />
+                  <span>Beneficiary account match</span>
+                  <strong>
+                    {verification.merchant_match ? "MATCH" : "FLAGGED"}
                   </strong>
                 </li>
                 <li
@@ -240,13 +307,19 @@ export function VerificationPage() {
                 </li>
                 <li
                   className={
-                    verification.merchant_match ? "match-yes" : "match-no"
+                    (verification.comparison.originality_score ?? 1) >= 0.70 &&
+                    !verification.comparison.tampering_detected
+                      ? "match-yes"
+                      : "match-no"
                   }
                 >
                   <Check size={14} />
-                  <span>Beneficiary account check</span>
+                  <span>AI Forensics & Originality</span>
                   <strong>
-                    {verification.merchant_match ? "MATCH" : "FLAGGED"}
+                    {(verification.comparison.originality_score ?? 1) >= 0.70 &&
+                    !verification.comparison.tampering_detected
+                      ? "GENUINE"
+                      : "SUSPICIOUS"}
                   </strong>
                 </li>
               </ul>

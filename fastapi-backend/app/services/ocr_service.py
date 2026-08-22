@@ -66,7 +66,8 @@ _KNOWN_BANKS = (
 )
 
 _GEMINI_STRICT_PROMPT = """You are a specialized banking document and receipt intelligence extraction engine for Nigerian bank transfer slips.
-Analyze the provided receipt image/document and extract all transaction details with high precision.
+Analyze the provided receipt image/document with high forensic precision.
+Extract all transaction details AND perform authenticity & tampering analysis (check for mismatched fonts, edited amounts/names, irregular alignment, or Photoshop/AI alteration artifacts).
 
 Return ONLY a valid, single JSON object with the following exact keys and structure. Do NOT include markdown code blocks, backticks, or any additional text:
 {
@@ -87,9 +88,15 @@ Return ONLY a valid, single JSON object with the following exact keys and struct
     "has_stamp_or_watermark": true/false,
     "standard_layout": true/false,
     "suspicious_typography": true/false,
-    "notes": "Brief observation on visual layout and authenticity cues"
+    "tampering_detected": true/false,
+    "originality_score": 0.95,
+    "authenticity_verdict": "GENUINE, SUSPICIOUS, or LIKELY_ALTERED",
+    "notes": "Detailed observation on visual layout, typography consistency, and authenticity cues"
   },
   "confidence": 0.95,
+  "originality_score": 0.95,
+  "tampering_detected": false,
+  "authenticity_verdict": "GENUINE",
   "field_confidence": {
     "amount": { "value": "25000.00", "confidence": 0.98, "evidence": "Amount: NGN 25,000.00" },
     "transaction_id": { "value": "NIP/WEMA/202603120194", "confidence": 0.95, "evidence": "Session ID: NIP/WEMA/202603120194" },
@@ -328,9 +335,15 @@ class OCRService:
                 "has_stamp_or_watermark": False,
                 "standard_layout": True,
                 "suspicious_typography": False,
+                "tampering_detected": False,
+                "originality_score": 0.95,
+                "authenticity_verdict": "GENUINE",
                 "notes": "Processed via deterministic local OCR engine."
             },
             "confidence": conf,
+            "originality_score": 0.95,
+            "tampering_detected": False,
+            "authenticity_verdict": "GENUINE",
             "field_confidence": field_conf,
             "missing_fields": missing,
             "raw_text": raw_text
@@ -341,11 +354,11 @@ class OCRService:
     # =========================================================================
 
     def _validate_backend_rules(self, data: Dict[str, Any]) -> Tuple[str, List[str]]:
-        """Independently validate extracted claim against financial and security rules.
+        """Independently validate extracted claim against financial, structural, and authenticity rules.
         
         Statuses:
         - EXTRACTION_FAILED: Image unreadable or no financial fields found
-        - INVALID_RECEIPT: Non-bank slip or corrupted structure
+        - INVALID_RECEIPT: Non-bank slip, forged layout, or visual tampering detected
         - NEEDS_REVIEW: Incomplete fields, low confidence, or missing transaction reference
         - VALID_CLAIM: Structurally valid claim ready for bank ledger reconciliation
         """
@@ -354,12 +367,21 @@ class OCRService:
         ref = data.get("transaction_id") or data.get("transaction_reference")
         bank = data.get("bank_name") or ""
         confidence = float(data.get("confidence") or 0.5)
+        orig_score = float(data.get("originality_score") or 0.95)
+        tampering = bool(data.get("tampering_detected") or False)
+        auth_verdict = str(data.get("authenticity_verdict") or "GENUINE").upper()
 
         # Rule 1: Readable text check
         if not data.get("raw_text") and not amount and not ref:
             return "EXTRACTION_FAILED", ["The uploaded document contains no readable receipt text."]
 
-        # Rule 2: Amount presence & validity
+        # Rule 2: Tampering & Forgery Analysis
+        if tampering or auth_verdict == "LIKELY_ALTERED":
+            warnings.append("AI Forensics: Visual tampering or edited typography detected on receipt.")
+        elif orig_score < 0.60 or auth_verdict == "SUSPICIOUS":
+            warnings.append(f"AI Forensics: Low originality rating ({orig_score * 100:.0f}%). Possible synthetic or altered document.")
+
+        # Rule 3: Amount presence & validity
         if not amount:
             warnings.append("Amount is missing from the receipt.")
         else:
@@ -370,29 +392,31 @@ class OCRService:
             except ValueError:
                 warnings.append("Amount format is invalid.")
 
-        # Rule 3: Transaction ID / Reference presence & format
+        # Rule 4: Transaction ID / Reference presence & format
         if not ref:
             warnings.append("Transaction ID / Reference could not be found.")
         elif len(str(ref)) < 4:
             warnings.append("Transaction ID is too short to be valid.")
 
-        # Rule 4: Bank recognition check
+        # Rule 5: Bank recognition check
         is_known_bank = any(b in bank.lower() for b in _KNOWN_BANKS)
         if not is_known_bank and bank:
             warnings.append(f"Bank '{bank}' is not in the recognized Nigerian financial institutions registry.")
 
-        # Rule 5: Confidence threshold
+        # Rule 6: Confidence threshold
         if confidence < 0.70:
             warnings.append("Overall extraction confidence is low. Manual review recommended.")
 
         # Determine validation status
         if not amount and not ref:
             status = "EXTRACTION_FAILED"
+        elif tampering or auth_verdict == "LIKELY_ALTERED":
+            status = "INVALID_RECEIPT"
         elif not amount or not ref:
             status = "NEEDS_REVIEW"
         elif warnings and any("not in the recognized" in w for w in warnings):
             status = "INVALID_RECEIPT"
-        elif confidence < 0.70:
+        elif confidence < 0.70 or orig_score < 0.65:
             status = "NEEDS_REVIEW"
         else:
             status = "VALID_CLAIM"
@@ -446,6 +470,10 @@ class OCRService:
             except ValueError:
                 formatted_amount = str(raw_amt)
 
+        orig_score = float(validated_dict.get("originality_score") or 0.95)
+        tamp_detected = bool(validated_dict.get("tampering_detected") or False)
+        auth_verd = str(validated_dict.get("authenticity_verdict") or "GENUINE")
+
         return ExtractedReceiptClaim(
             amount=formatted_amount,
             currency=validated_dict.get("currency") or "NGN",
@@ -461,6 +489,9 @@ class OCRService:
             narration=validated_dict.get("description") or "Transfer Settlement",
             status_text="Successful Transaction" if "success" in validated_dict.get("raw_text", "").lower() else "Processing",
             confidence=float(validated_dict.get("confidence") or 0.95),
+            originality_score=orig_score,
+            tampering_detected=tamp_detected,
+            authenticity_verdict=auth_verd,
             raw_text=validated_dict.get("raw_text") or "",
             field_evidence=validated_dict.get("field_confidence") or {},
             authenticity_indicators=validated_dict.get("receipt_authenticity_indicators") or {},

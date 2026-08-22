@@ -60,6 +60,9 @@ def auto_migrate_columns() -> None:
                 ("ai_engine", "VARCHAR(32) DEFAULT 'GEMINI_VISION'"),
                 ("ai_offline", "BOOLEAN DEFAULT 0"),
                 ("ai_status_message", "VARCHAR(255)"),
+                ("originality_score", "FLOAT DEFAULT 0.95"),
+                ("tampering_detected", "BOOLEAN DEFAULT 0"),
+                ("authenticity_verdict", "VARCHAR(32) DEFAULT 'GENUINE'"),
             ]
             with engine.connect() as conn:
                 for col_name, col_type in receipt_cols_to_add:

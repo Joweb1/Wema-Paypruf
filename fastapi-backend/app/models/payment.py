@@ -118,6 +118,9 @@ class Receipt(Base):
     ai_engine = Column(String(32), default="GEMINI_VISION", nullable=False)
     ai_offline = Column(Boolean, default=False, nullable=False)
     ai_status_message = Column(String(255), nullable=True)
+    originality_score = Column(Float, default=0.95, nullable=False)
+    tampering_detected = Column(Boolean, default=False, nullable=False)
+    authenticity_verdict = Column(String(32), default="GENUINE", nullable=False)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     payment = relationship("Payment", back_populates="receipt")
@@ -161,6 +164,9 @@ class Receipt(Base):
             "transaction_date": self.transaction_date.isoformat() if self.transaction_date else None,
             "transaction_time": self.transaction_time,
             "confidence": self.confidence,
+            "originality_score": self.originality_score,
+            "tampering_detected": self.tampering_detected,
+            "authenticity_verdict": self.authenticity_verdict,
             "raw_text": self.raw_text,
             "field_evidence": fe,
             "authenticity_indicators": ai,
