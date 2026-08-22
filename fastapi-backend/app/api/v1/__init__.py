@@ -8,6 +8,7 @@ from app.api.v1.payments import router as payments_router
 from app.api.v1.public import router as public_router
 from app.api.v1.risk import router as risk_router
 from app.api.v1.assets import router as assets_router
+from app.api.v1.ai_monitor import router as ai_monitor_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -16,5 +17,6 @@ api_router.include_router(payments_router)
 api_router.include_router(public_router)
 api_router.include_router(risk_router)
 api_router.include_router(assets_router)
+api_router.include_router(ai_monitor_router, prefix="/ai-monitor", tags=["AI Engine Monitor"])
 
 __all__ = ["api_router"]

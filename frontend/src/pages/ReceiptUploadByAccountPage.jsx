@@ -20,7 +20,7 @@ import { useAuth } from "../auth/AuthContext";
 import { Navbar } from "../components/Navbar";
 import { ReceiptUploader } from "../components/ReceiptUploader";
 import { VerificationProgress } from "../components/VerificationProgress";
-import { AIOfflineNotice, AIEngineBadge } from "../components/common/AIOfflineNotice";
+import { AIOfflineNotice, AIEngineBadge, AIEngineMonitorModal, AIEngineMonitorButton } from "../components/common/AIOfflineNotice";
 import { api, getErrorMessage } from "../services/api";
 import { formatMoney } from "../utils/format";
 
@@ -34,6 +34,7 @@ export function ReceiptUploadPage({ accountName: propAccountName }) {
   const [uploadError, setUploadError] = useState(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [result, setResult] = useState(null);
+  const [isMonitorOpen, setIsMonitorOpen] = useState(false);
 
   const handleVerify = async () => {
     if (!receiptFile) return;
@@ -219,10 +220,24 @@ export function ReceiptUploadPage({ accountName: propAccountName }) {
                   marginBottom: "24px",
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
                   <span className="eyebrow" style={{ margin: 0 }}>AI Forensic Analysis Matrix</span>
-                  <AIEngineBadge receipt={result} />
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <AIEngineMonitorButton
+                      traceLogs={result.ai_trace_logs}
+                      receipt={result}
+                      onClick={() => setIsMonitorOpen(true)}
+                    />
+                    <AIEngineBadge receipt={result} />
+                  </div>
                 </div>
+
+                <AIEngineMonitorModal
+                  isOpen={isMonitorOpen}
+                  onClose={() => setIsMonitorOpen(false)}
+                  traceLogs={result.ai_trace_logs}
+                  receipt={result}
+                />
 
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "16px" }}>
                   <div style={{ background: "#fff", padding: "14px", borderRadius: "12px", border: "1px solid #e5e7eb" }}>

@@ -15,7 +15,7 @@ import { useAuth } from "../auth/AuthContext";
 import { PageLoader, RetryButton, StatePanel } from "../components/AsyncState";
 import { StatusBadge } from "../components/StatusBadge";
 import { Timeline } from "../components/Timeline";
-import { AIOfflineNotice, AIEngineBadge } from "../components/common/AIOfflineNotice";
+import { AIOfflineNotice, AIEngineBadge, AIEngineMonitorModal, AIEngineMonitorButton } from "../components/common/AIOfflineNotice";
 import { useToast } from "../hooks/useToast";
 import { api, getErrorMessage, resolveApiAssetUrl } from "../services/api";
 import { formatDateTime, formatFileSize, formatMoney, safePublicPath } from "../utils/format";
@@ -25,6 +25,7 @@ export function PaymentDetailsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
+  const [isMonitorOpen, setIsMonitorOpen] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["payment", paymentId],
@@ -130,13 +131,27 @@ export function PaymentDetailsPage() {
 
       <div className="record-grid">
         <section className="content-card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", flexWrap: "wrap", gap: "8px" }}>
             <span className="eyebrow" style={{ margin: 0 }}>Customer uploaded receipt</span>
-            <AIEngineBadge receipt={receipt} />
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <AIEngineMonitorButton
+                traceLogs={receipt?.ai_trace_logs || []}
+                receipt={receipt}
+                onClick={() => setIsMonitorOpen(true)}
+              />
+              <AIEngineBadge receipt={receipt} traceLogs={receipt?.ai_trace_logs || []} />
+            </div>
           </div>
           <h2>OCR Extraction Record</h2>
 
-          <AIOfflineNotice receipt={receipt} />
+          <AIEngineMonitorModal
+            isOpen={isMonitorOpen}
+            onClose={() => setIsMonitorOpen(false)}
+            traceLogs={receipt?.ai_trace_logs || []}
+            receipt={receipt}
+          />
+
+          <AIOfflineNotice receipt={receipt} traceLogs={receipt?.ai_trace_logs || []} />
 
           {receipt ? (
             <div>

@@ -341,6 +341,13 @@ class ReconcileService:
         expected_amt = payment.amount
         receipt_amt = receipt.amount if receipt else None
 
+        trace = []
+        if receipt and receipt.ai_trace_json:
+            try:
+                trace = json.loads(receipt.ai_trace_json)
+            except Exception:
+                pass
+
         comparison = {
             "expected_amount": expected_amt,
             "receipt_amount": receipt_amt,
@@ -354,6 +361,7 @@ class ReconcileService:
             "originality_score": receipt.originality_score if receipt else 0.95,
             "authenticity_verdict": receipt.authenticity_verdict if receipt else "GENUINE",
             "tampering_detected": receipt.tampering_detected if receipt else False,
+            "ai_trace_logs": trace,
         }
 
         timeline = [

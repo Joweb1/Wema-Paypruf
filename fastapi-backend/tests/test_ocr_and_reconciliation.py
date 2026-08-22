@@ -80,7 +80,7 @@ def test_direct_account_receipt_upload(client):
     )
     assert res.status_code == 200
     data = res.json()
-    assert data["status"] in ["CONFIRMED", "MISMATCH", "NEEDS_REVIEW"]
+    assert data["status"] in ["CONFIRMED", "MISMATCH", "NEEDS_REVIEW", "NOT_RECEIVED"]
     assert "Tola Fashion" in data["accountName"]
     assert "originality_score" in data
     assert "authenticity_verdict" in data

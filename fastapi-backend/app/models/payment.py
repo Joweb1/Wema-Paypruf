@@ -118,6 +118,7 @@ class Receipt(Base):
     ai_engine = Column(String(32), default="GEMINI_VISION", nullable=False)
     ai_offline = Column(Boolean, default=False, nullable=False)
     ai_status_message = Column(String(255), nullable=True)
+    ai_trace_json = Column(Text, nullable=True)
     originality_score = Column(Float, default=0.95, nullable=False)
     tampering_detected = Column(Boolean, default=False, nullable=False)
     authenticity_verdict = Column(String(32), default="GENUINE", nullable=False)
@@ -144,6 +145,13 @@ class Receipt(Base):
         if self.missing_fields_json:
             try:
                 mf = json.loads(self.missing_fields_json)
+            except Exception:
+                pass
+
+        trace = []
+        if self.ai_trace_json:
+            try:
+                trace = json.loads(self.ai_trace_json)
             except Exception:
                 pass
 
@@ -175,6 +183,7 @@ class Receipt(Base):
             "ai_engine": self.ai_engine,
             "ai_offline": self.ai_offline,
             "ai_status_message": self.ai_status_message,
+            "ai_trace_logs": trace,
         }
 
 

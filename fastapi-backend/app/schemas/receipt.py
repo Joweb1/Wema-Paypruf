@@ -1,4 +1,4 @@
-"""Pydantic schemas for Receipt OCR extraction and Gemini Vision Intelligence."""
+"""Pydantic schemas for Receipt OCR extraction, Gemini Vision, and NVIDIA AI Failover."""
 
 from __future__ import annotations
 
@@ -30,7 +30,7 @@ class ReceiptAuthenticityIndicators(BaseModel):
 
 
 class GeminiExtractionSchema(BaseModel):
-    """Strict structured JSON returned by Gemini Vision model."""
+    """Strict structured JSON returned by Gemini/NVIDIA Vision models."""
     bank_name: Optional[str] = None
     sender_name: Optional[str] = None
     receiver_name: Optional[str] = None
@@ -87,6 +87,7 @@ class ReceiptResponse(BaseModel):
     ai_engine: str = "GEMINI_VISION"
     ai_offline: bool = False
     ai_status_message: Optional[str] = None
+    ai_trace_logs: List[Dict[str, Any]] = Field(default_factory=list)
 
     model_config = {"extra": "allow"}
 
@@ -119,5 +120,6 @@ class ExtractedReceiptClaim(BaseModel):
     ai_engine: str = "GEMINI_VISION"
     ai_offline: bool = False
     ai_status_message: Optional[str] = None
+    ai_trace_logs: List[Dict[str, Any]] = Field(default_factory=list)
 
     model_config = {"extra": "allow"}

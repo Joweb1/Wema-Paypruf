@@ -85,6 +85,7 @@ async def upload_public_receipt(
         rec.ai_engine = extracted.ai_engine
         rec.ai_offline = extracted.ai_offline
         rec.ai_status_message = extracted.ai_status_message
+        rec.ai_trace_json = json.dumps(extracted.ai_trace_logs)
     else:
         rec = Receipt(
             payment_id=payment.id,
@@ -115,6 +116,7 @@ async def upload_public_receipt(
             ai_engine=extracted.ai_engine,
             ai_offline=extracted.ai_offline,
             ai_status_message=extracted.ai_status_message,
+            ai_trace_json=json.dumps(extracted.ai_trace_logs),
         )
         db.add(rec)
 
@@ -273,4 +275,5 @@ async def direct_receipt_upload(
         "ai_engine": extracted.ai_engine,
         "ai_offline": extracted.ai_offline,
         "ai_status_message": extracted.ai_status_message,
+        "ai_trace_logs": extracted.ai_trace_logs,
     }

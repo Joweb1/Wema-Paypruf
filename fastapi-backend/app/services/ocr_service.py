@@ -6,7 +6,8 @@ import json
 import math
 import os
 import re
-from datetime import datetime, date, time
+import time
+from datetime import datetime, date, time as dt_time
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -187,10 +188,16 @@ class OCRService:
     # Stage 3 & 4: Gemini Vision Structured Extraction & Schema Validation
     # =========================================================================
 
-    def _call_gemini_vision(self, image: Image.Image) -> Optional[Dict[str, Any]]:
-        """Send image to Google Gemini Vision with strict JSON prompt via REST API with multi-key failover."""
+    def _call_gemini_vision(self, image: Image.Image, trace_logs: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        """Send image to Google Gemini Vision with strict JSON prompt via REST API with multi-key and multi-model failover."""
         keys = settings.get_gemini_keys()
         if not keys:
+            trace_logs.append({
+                "timestamp": time.time(),
+                "tier": "Tier 1: Gemini Vision",
+                "status": "SKIPPED",
+                "message": "No Google Gemini API keys configured in environment."
+            })
             return None
 
         import base64
@@ -198,18 +205,23 @@ class OCRService:
         import urllib.error
 
         buffer = BytesIO()
-        # Downscale slightly for fast and reliable network transport
         send_img = image.copy()
         if max(send_img.size) > 1600:
             send_img.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
         send_img.save(buffer, format="PNG")
         b64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-        model_name = settings.GEMINI_MODEL or "gemini-flash-latest"
-        if model_name.startswith("models/"):
-            model_name = model_name[7:]
-        if model_name == "gemini-2.0-flash":
-            model_name = "gemini-flash-latest"
+        models_to_try = [
+            settings.GEMINI_MODEL or "gemini-3.5-flash",
+            "gemini-3.5-flash",
+            "gemini-flash-lite-latest",
+            "gemini-3.7-flash",
+        ]
+        unique_models = []
+        for m in models_to_try:
+            clean_m = m.replace("models/", "") if m else ""
+            if clean_m and clean_m not in unique_models:
+                unique_models.append(clean_m)
 
         payload = {
             "contents": [
@@ -234,48 +246,102 @@ class OCRService:
 
         # Rotate through available keys in priority order
         for idx, key in enumerate(keys):
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
-            req = urllib.request.Request(
-                url,
-                data=encoded_data,
-                headers={"Content-Type": "application/json"}
-            )
-            try:
-                with urllib.request.urlopen(req, timeout=12) as resp:
-                    resp_data = json.loads(resp.read().decode("utf-8"))
-                    candidates = resp_data.get("candidates", [])
-                    if candidates:
-                        parts = candidates[0].get("content", {}).get("parts", [])
-                        if parts and "text" in parts[0]:
-                            clean_text = parts[0]["text"].strip()
-                            if clean_text.startswith("```"):
-                                clean_text = re.sub(r"^```(?:json)?\n?", "", clean_text)
-                                clean_text = re.sub(r"\n?```$", "", clean_text).strip()
-                            return json.loads(clean_text)
-            except urllib.error.HTTPError as e:
-                # Key-specific or quota errors: 400 (invalid key), 401 (unauthorized), 403 (permission denied), 429 (quota exceeded), 503 (spikes in demand)
-                # These are API key issues -> failover to the next available backup key
-                if e.code in (400, 401, 403, 429, 500, 502, 503, 504):
+            masked_key = f"{key[:8]}...{key[-6:]}" if len(key) > 14 else f"Key #{idx+1}"
+            key_label = f"Primary Key #{idx+1}" if idx == 0 else f"Backup Key #{idx+1}"
+
+            for model_name in unique_models:
+                t0 = time.time()
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
+                req = urllib.request.Request(
+                    url,
+                    data=encoded_data,
+                    headers={"Content-Type": "application/json"}
+                )
+                try:
+                    with urllib.request.urlopen(req, timeout=10) as resp:
+                        elapsed_ms = int((time.time() - t0) * 1000)
+                        resp_data = json.loads(resp.read().decode("utf-8"))
+                        candidates = resp_data.get("candidates", [])
+                        if candidates:
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            if parts and "text" in parts[0]:
+                                clean_text = parts[0]["text"].strip()
+                                if clean_text.startswith("```"):
+                                    clean_text = re.sub(r"^```(?:json)?\n?", "", clean_text)
+                                    clean_text = re.sub(r"\n?```$", "", clean_text).strip()
+                                parsed = json.loads(clean_text)
+                                trace_logs.append({
+                                    "timestamp": time.time(),
+                                    "tier": "Tier 1: Gemini Vision",
+                                    "engine": "GEMINI_VISION",
+                                    "key_label": key_label,
+                                    "key_masked": masked_key,
+                                    "model": model_name,
+                                    "status": "SUCCESS",
+                                    "latency_ms": elapsed_ms,
+                                    "message": f"✓ {key_label} ({masked_key}) with model {model_name} processed successfully in {elapsed_ms}ms."
+                                })
+                                return parsed
+                except urllib.error.HTTPError as e:
+                    elapsed_ms = int((time.time() - t0) * 1000)
+                    err_msg = e.read().decode("utf-8")[:100].replace("\n", " ")
+                    trace_logs.append({
+                        "timestamp": time.time(),
+                        "tier": "Tier 1: Gemini Vision",
+                        "engine": "GEMINI_VISION",
+                        "key_label": key_label,
+                        "key_masked": masked_key,
+                        "model": model_name,
+                        "status": f"HTTP {e.code}",
+                        "latency_ms": elapsed_ms,
+                        "error_detail": err_msg,
+                        "message": f"⚠️ {key_label} ({masked_key}) returned HTTP {e.code} ({err_msg}). Switching to next key/model..."
+                    })
+                    # 403 denied or 400 invalid: break out of models for this dead key to try next key immediately
+                    if e.code in (400, 401, 403):
+                        break
                     continue
-                else:
-                    break
-            except (TimeoutError, urllib.error.URLError) as e:
-                # Network timeout or general connection failure -> This is a network issue, not an API key issue.
-                # Do NOT switch keys; break immediately to use local offline OCR fallback
-                break
-            except Exception:
-                continue
+                except Exception as e:
+                    elapsed_ms = int((time.time() - t0) * 1000)
+                    trace_logs.append({
+                        "timestamp": time.time(),
+                        "tier": "Tier 1: Gemini Vision",
+                        "engine": "GEMINI_VISION",
+                        "key_label": key_label,
+                        "key_masked": masked_key,
+                        "model": model_name,
+                        "status": "TIMEOUT / ERROR",
+                        "latency_ms": elapsed_ms,
+                        "error_detail": str(e)[:100],
+                        "message": f"⚠️ {key_label} ({masked_key}) timed out or network error ({str(e)[:50]}). Trying next option..."
+                    })
+                    continue
 
         return None
 
-    def _call_nvidia_vision(self, image: Image.Image) -> Optional[Dict[str, Any]]:
+    def _call_nvidia_vision(self, image: Image.Image, trace_logs: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         """Backup Vision extraction via NVIDIA Cloud NIM (using requests)."""
         import requests
         import base64
 
         nvidia_api_key = settings.NVIDIA_API_KEY or os.environ.get("NVIDIA_API_KEY", "")
         if not nvidia_api_key:
+            trace_logs.append({
+                "timestamp": time.time(),
+                "tier": "Tier 2: NVIDIA Cloud Vision",
+                "status": "SKIPPED",
+                "message": "NVIDIA API key not configured."
+            })
             return None
+
+        nv_masked = f"{nvidia_api_key[:10]}...{nvidia_api_key[-6:]}" if len(nvidia_api_key) > 16 else "NVIDIA_KEY"
+        trace_logs.append({
+            "timestamp": time.time(),
+            "tier": "Tier 2: NVIDIA Cloud Vision",
+            "status": "SWITCHING",
+            "key_masked": nv_masked,
+            "message": f"⚡ Switched to Secondary Backup AI: NVIDIA Cloud Vision ({nv_masked})."
+        })
 
         try:
             buffer = BytesIO()
@@ -324,8 +390,10 @@ class OCRService:
                     "max_tokens": 1024,
                 }
 
+                t0 = time.time()
                 try:
                     resp = requests.post(url, headers=headers, json=payload, timeout=25)
+                    elapsed_ms = int((time.time() - t0) * 1000)
                     if resp.status_code == 200:
                         resp_json = resp.json()
                         choices = resp_json.get("choices", [])
@@ -335,13 +403,47 @@ class OCRService:
                                 match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", content)
                                 if match:
                                     content = match.group(1).strip()
+                            parsed_data = None
                             try:
-                                return json.loads(content)
+                                parsed_data = json.loads(content)
                             except Exception:
                                 obj_match = re.search(r"\{[\s\S]*\}", content)
                                 if obj_match:
-                                    return json.loads(obj_match.group(0))
-                except Exception:
+                                    parsed_data = json.loads(obj_match.group(0))
+
+                            if parsed_data:
+                                trace_logs.append({
+                                    "timestamp": time.time(),
+                                    "tier": "Tier 2: NVIDIA Cloud Vision",
+                                    "engine": "NVIDIA_VISION",
+                                    "model": model_name,
+                                    "status": "SUCCESS",
+                                    "latency_ms": elapsed_ms,
+                                    "message": f"✓ NVIDIA Cloud Vision ({model_name}) extracted receipt successfully in {elapsed_ms}ms."
+                                })
+                                return parsed_data
+                    else:
+                        elapsed_ms = int((time.time() - t0) * 1000)
+                        trace_logs.append({
+                            "timestamp": time.time(),
+                            "tier": "Tier 2: NVIDIA Cloud Vision",
+                            "model": model_name,
+                            "status": f"HTTP {resp.status_code}",
+                            "latency_ms": elapsed_ms,
+                            "error_detail": resp.text[:100],
+                            "message": f"⚠️ NVIDIA Model {model_name} returned HTTP {resp.status_code}. Trying fallback model..."
+                        })
+                except Exception as e:
+                    elapsed_ms = int((time.time() - t0) * 1000)
+                    trace_logs.append({
+                        "timestamp": time.time(),
+                        "tier": "Tier 2: NVIDIA Cloud Vision",
+                        "model": model_name,
+                        "status": "TIMEOUT / ERROR",
+                        "latency_ms": elapsed_ms,
+                        "error_detail": str(e)[:100],
+                        "message": f"⚠️ NVIDIA Model {model_name} error: {str(e)[:60]}."
+                    })
                     continue
         except Exception:
             pass
@@ -510,21 +612,22 @@ class OCRService:
     def process_receipt(self, file_path: str, mime_type: str = "image/png") -> ExtractedReceiptClaim:
         """Run complete 3-Layer pipeline:
         1. Preprocess Image
-        2. Gemini Vision JSON Extraction (with Local OCR Fallback)
+        2. Gemini Vision JSON Extraction (with NVIDIA and Local OCR Failover)
         3. Schema Validation
         4. Backend Rules Engine
         """
+        trace_logs: List[Dict[str, Any]] = []
         image = self.preprocess_image(file_path, mime_type)
 
         # 1. Attempt Gemini Vision structured extraction (Primary AI)
-        extracted_data = self._call_gemini_vision(image)
+        extracted_data = self._call_gemini_vision(image, trace_logs)
         if extracted_data:
             ai_engine = "GEMINI_VISION"
             ai_offline = False
             ai_status_message = None
         else:
             # 2. Attempt NVIDIA Cloud Vision structured extraction (Secondary Backup AI)
-            extracted_data = self._call_nvidia_vision(image)
+            extracted_data = self._call_nvidia_vision(image, trace_logs)
             if extracted_data:
                 ai_engine = "NVIDIA_VISION"
                 ai_offline = False
@@ -535,6 +638,13 @@ class OCRService:
                 ai_engine = "LOCAL_FALLBACK"
                 ai_offline = True
                 ai_status_message = "AI Vision is currently offline. Report was generated using local fallback OCR; extraction accuracy may be reduced."
+                trace_logs.append({
+                    "timestamp": time.time(),
+                    "tier": "Tier 3: Local RapidOCR Engine",
+                    "engine": "LOCAL_FALLBACK",
+                    "status": "FALLBACK_USED",
+                    "message": "All cloud AI engines unreachable. Processed using local in-process OCR engine."
+                })
 
         # 4. Schema validation with Pydantic
         try:
@@ -590,6 +700,7 @@ class OCRService:
             ai_engine=ai_engine,
             ai_offline=ai_offline,
             ai_status_message=ai_status_message,
+            ai_trace_logs=trace_logs,
         )
 
     # -------------------------------------------------------------------------

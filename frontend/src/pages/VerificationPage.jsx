@@ -17,7 +17,7 @@ import { PageLoader, RetryButton, StatePanel } from "../components/AsyncState";
 import { ReportMerchantModal } from "../components/ReportMerchantModal";
 import { StatusBadge } from "../components/StatusBadge";
 import { Timeline } from "../components/Timeline";
-import { AIOfflineNotice } from "../components/common/AIOfflineNotice";
+import { AIOfflineNotice, AIEngineBadge, AIEngineMonitorModal, AIEngineMonitorButton } from "../components/common/AIOfflineNotice";
 import { useToast } from "../hooks/useToast";
 import { api, getErrorMessage } from "../services/api";
 import { formatDateTime, formatMoney, safePublicPath } from "../utils/format";
@@ -28,6 +28,7 @@ export function VerificationPage() {
   const queryClient = useQueryClient();
   const { pushToast } = useToast();
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [isMonitorOpen, setIsMonitorOpen] = useState(false);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: ["publicPayment", token],
@@ -169,8 +170,25 @@ export function VerificationPage() {
 
       {verification?.comparison && (
         <section className="content-card comparison-card">
-          <span className="eyebrow">Cross-check findings</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px", flexWrap: "wrap", gap: "8px" }}>
+            <span className="eyebrow" style={{ margin: 0 }}>Cross-check findings</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <AIEngineMonitorButton
+                traceLogs={verification.comparison.ai_trace_logs || []}
+                receipt={data?.receipt || payment?.receipt}
+                onClick={() => setIsMonitorOpen(true)}
+              />
+              <AIEngineBadge receipt={data?.receipt || payment?.receipt} traceLogs={verification.comparison.ai_trace_logs || []} />
+            </div>
+          </div>
           <h2>Payment Ledger Comparison</h2>
+
+          <AIEngineMonitorModal
+            isOpen={isMonitorOpen}
+            onClose={() => setIsMonitorOpen(false)}
+            traceLogs={verification.comparison.ai_trace_logs || []}
+            receipt={data?.receipt || payment?.receipt}
+          />
 
           <div className="amount-comparison">
             <div>
