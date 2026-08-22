@@ -225,7 +225,7 @@ class OCRService:
         }
         encoded_data = json.dumps(payload).encode("utf-8")
 
-        # Rotate through all available keys in priority order
+        # Rotate through available keys in priority order
         for idx, key in enumerate(keys):
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
             req = urllib.request.Request(
@@ -245,8 +245,18 @@ class OCRService:
                                 clean_text = re.sub(r"^```(?:json)?\n?", "", clean_text)
                                 clean_text = re.sub(r"\n?```$", "", clean_text).strip()
                             return json.loads(clean_text)
+            except urllib.error.HTTPError as e:
+                # Key-specific or quota errors: 400 (invalid key), 401 (unauthorized), 403 (permission denied), 429 (quota exceeded), 503 (spikes in demand)
+                # These are API key issues -> failover to the next available backup key
+                if e.code in (400, 401, 403, 429, 500, 502, 503, 504):
+                    continue
+                else:
+                    break
+            except (TimeoutError, urllib.error.URLError) as e:
+                # Network timeout or general connection failure -> This is a network issue, not an API key issue.
+                # Do NOT switch keys; break immediately to use local offline OCR fallback
+                break
             except Exception:
-                # If key fails due to 403, 429 quota, 503 high demand, failover to next key
                 continue
 
         return None
