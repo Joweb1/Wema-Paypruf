@@ -15,6 +15,7 @@ import { useAuth } from "../auth/AuthContext";
 import { PageLoader, RetryButton, StatePanel } from "../components/AsyncState";
 import { StatusBadge } from "../components/StatusBadge";
 import { Timeline } from "../components/Timeline";
+import { AIOfflineNotice, AIEngineBadge } from "../components/common/AIOfflineNotice";
 import { useToast } from "../hooks/useToast";
 import { api, getErrorMessage, resolveApiAssetUrl } from "../services/api";
 import { formatDateTime, formatFileSize, formatMoney, safePublicPath } from "../utils/format";
@@ -129,8 +130,13 @@ export function PaymentDetailsPage() {
 
       <div className="record-grid">
         <section className="content-card">
-          <span className="eyebrow">Customer uploaded receipt</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+            <span className="eyebrow" style={{ margin: 0 }}>Customer uploaded receipt</span>
+            <AIEngineBadge receipt={receipt} />
+          </div>
           <h2>OCR Extraction Record</h2>
+
+          <AIOfflineNotice receipt={receipt} />
 
           {receipt ? (
             <div>

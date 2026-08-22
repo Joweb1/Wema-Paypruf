@@ -17,6 +17,7 @@ import { PageLoader, RetryButton, StatePanel } from "../components/AsyncState";
 import { ReportMerchantModal } from "../components/ReportMerchantModal";
 import { StatusBadge } from "../components/StatusBadge";
 import { Timeline } from "../components/Timeline";
+import { AIOfflineNotice } from "../components/common/AIOfflineNotice";
 import { useToast } from "../hooks/useToast";
 import { api, getErrorMessage } from "../services/api";
 import { formatDateTime, formatMoney, safePublicPath } from "../utils/format";
@@ -163,6 +164,8 @@ export function VerificationPage() {
           {recheckMutation.isPending ? "Rechecking..." : "Recheck status"}
         </button>
       </section>
+
+      <AIOfflineNotice receipt={data?.receipt || payment?.receipt} />
 
       {verification?.comparison && (
         <section className="content-card comparison-card">

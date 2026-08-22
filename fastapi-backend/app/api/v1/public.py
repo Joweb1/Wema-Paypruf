@@ -75,6 +75,9 @@ async def upload_public_receipt(
         rec.authenticity_indicators_json = auth_ind_str
         rec.missing_fields_json = missing_str
         rec.backend_validation_status = extracted.backend_validation_status
+        rec.ai_engine = extracted.ai_engine
+        rec.ai_offline = extracted.ai_offline
+        rec.ai_status_message = extracted.ai_status_message
     else:
         rec = Receipt(
             payment_id=payment.id,
@@ -99,6 +102,9 @@ async def upload_public_receipt(
             authenticity_indicators_json=auth_ind_str,
             missing_fields_json=missing_str,
             backend_validation_status=extracted.backend_validation_status,
+            ai_engine=extracted.ai_engine,
+            ai_offline=extracted.ai_offline,
+            ai_status_message=extracted.ai_status_message,
         )
         db.add(rec)
 

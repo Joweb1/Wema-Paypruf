@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ConfidenceGauge } from '../common/ConfidenceGauge';
+import { AIOfflineNotice, AIEngineBadge } from '../common/AIOfflineNotice';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 import { StatusBadge } from '../common/StatusBadge';
 
@@ -56,6 +57,7 @@ export const ReceiptVerificationModal = () => {
                   ML Receipt Deep Scan & Fraud Analysis
                 </h3>
                 <StatusBadge status={tx.status} size="sm" />
+                <AIEngineBadge receipt={receipt} />
               </div>
               <p className="text-xs text-slate-500 font-mono">
                 Ref: {tx.reference} • Payer: {tx.customerName}
@@ -107,6 +109,8 @@ export const ReceiptVerificationModal = () => {
 
           {/* Right Column (7 cols): Fraud Heuristics & Reconciled Fields */}
           <div className="lg:col-span-7 p-6 space-y-6 overflow-y-auto">
+            <AIOfflineNotice receipt={receipt} />
+
             {/* Confidence Score Bar */}
             <ConfidenceGauge score={receipt.confidence} />
 

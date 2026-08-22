@@ -45,6 +45,9 @@ class GeminiExtractionSchema(BaseModel):
     field_confidence: Optional[Dict[str, FieldEvidence]] = None
     missing_fields: List[str] = Field(default_factory=list)
     raw_text: str = ""
+    ai_engine: str = "GEMINI_VISION"
+    ai_offline: bool = False
+    ai_status_message: Optional[str] = None
 
     model_config = {"extra": "allow"}
 
@@ -71,7 +74,10 @@ class ReceiptResponse(BaseModel):
     field_evidence: Optional[Dict[str, Any]] = None
     authenticity_indicators: Optional[Dict[str, Any]] = None
     missing_fields: List[str] = Field(default_factory=list)
-    backend_validation_status: Optional[str] = "VALID_CLAIM"  # EXTRACTION_FAILED | INVALID_RECEIPT | NEEDS_REVIEW | VALID_CLAIM
+    backend_validation_status: Optional[str] = "VALID_CLAIM"
+    ai_engine: str = "GEMINI_VISION"
+    ai_offline: bool = False
+    ai_status_message: Optional[str] = None
 
     model_config = {"extra": "allow"}
 
@@ -98,5 +104,8 @@ class ExtractedReceiptClaim(BaseModel):
     missing_fields: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
     backend_validation_status: str = "VALID_CLAIM"
+    ai_engine: str = "GEMINI_VISION"
+    ai_offline: bool = False
+    ai_status_message: Optional[str] = None
 
     model_config = {"extra": "allow"}

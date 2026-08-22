@@ -115,6 +115,9 @@ class Receipt(Base):
     authenticity_indicators_json = Column(Text, nullable=True)
     missing_fields_json = Column(Text, nullable=True)
     backend_validation_status = Column(String(64), default="VALID_CLAIM", nullable=False)
+    ai_engine = Column(String(32), default="GEMINI_VISION", nullable=False)
+    ai_offline = Column(Boolean, default=False, nullable=False)
+    ai_status_message = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     payment = relationship("Payment", back_populates="receipt")
@@ -163,6 +166,9 @@ class Receipt(Base):
             "authenticity_indicators": ai,
             "missing_fields": mf,
             "backend_validation_status": self.backend_validation_status,
+            "ai_engine": self.ai_engine,
+            "ai_offline": self.ai_offline,
+            "ai_status_message": self.ai_status_message,
         }
 
 

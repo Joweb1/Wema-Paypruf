@@ -398,10 +398,16 @@ class OCRService:
 
         # 1. Attempt Gemini Vision structured extraction
         extracted_data = self._call_gemini_vision(image)
-
-        # 2. Fallback to Local OCR if Gemini is unavailable
-        if not extracted_data:
+        if extracted_data:
+            ai_engine = "GEMINI_VISION"
+            ai_offline = False
+            ai_status_message = None
+        else:
+            # 2. Fallback to Local OCR if Gemini is unavailable
             extracted_data = self._local_fallback_extraction(image)
+            ai_engine = "LOCAL_FALLBACK"
+            ai_offline = True
+            ai_status_message = "AI Vision is currently offline. Report was generated using local fallback OCR; extraction accuracy may be reduced."
 
         # 3. Schema validation with Pydantic
         try:
@@ -412,6 +418,8 @@ class OCRService:
 
         # 4. Backend Rules Engine validation
         backend_status, warnings = self._validate_backend_rules(validated_dict)
+        if ai_offline:
+            warnings.append("AI Vision is offline. Extraction results may have reduced accuracy; please verify details.")
 
         # Normalize amount
         raw_amt = validated_dict.get("amount")
@@ -443,6 +451,9 @@ class OCRService:
             missing_fields=validated_dict.get("missing_fields") or [],
             warnings=warnings,
             backend_validation_status=backend_status,
+            ai_engine=ai_engine,
+            ai_offline=ai_offline,
+            ai_status_message=ai_status_message,
         )
 
     # -------------------------------------------------------------------------

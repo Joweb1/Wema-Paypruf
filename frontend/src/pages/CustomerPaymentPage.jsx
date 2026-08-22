@@ -16,6 +16,7 @@ import { ReceiptUploader } from "../components/ReceiptUploader";
 import { ReportMerchantModal } from "../components/ReportMerchantModal";
 import { StatusBadge } from "../components/StatusBadge";
 import { VerificationProgress } from "../components/VerificationProgress";
+import { AIOfflineNotice } from "../components/common/AIOfflineNotice";
 import { useCopy } from "../hooks/useCopy";
 import { useToast } from "../hooks/useToast";
 import { api, getErrorMessage } from "../services/api";
@@ -191,6 +192,8 @@ export function CustomerPaymentPage() {
             </p>
           </div>
         </div>
+
+        <AIOfflineNotice receipt={receipt} />
 
         {verification && (
           <div className="current-result">
