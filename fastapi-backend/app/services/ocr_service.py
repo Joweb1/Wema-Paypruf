@@ -179,36 +179,68 @@ class OCRService:
     # =========================================================================
 
     def _call_gemini_vision(self, image: Image.Image) -> Optional[Dict[str, Any]]:
-        """Send image to Google Gemini Vision with strict JSON prompt."""
+        """Send image to Google Gemini Vision with strict JSON prompt via REST API."""
         if not self.gemini_api_key:
             return None
 
         try:
-            from google import genai
-            from google.genai import types
+            import base64
+            import urllib.request
+            import urllib.error
 
             buffer = BytesIO()
-            image.save(buffer, format="PNG")
-            image_bytes = buffer.getvalue()
+            # Downscale slightly for fast and reliable network transport
+            send_img = image.copy()
+            if max(send_img.size) > 1600:
+                send_img.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
+            send_img.save(buffer, format="PNG")
+            b64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-            client = genai.Client(api_key=self.gemini_api_key)
-            response = client.models.generate_content(
-                model=settings.GEMINI_MODEL,
-                contents=[
-                    _GEMINI_STRICT_PROMPT,
-                    types.Part.from_bytes(data=image_bytes, mime_type="image/png"),
-                ]
+            model_name = settings.GEMINI_MODEL or "gemini-flash-latest"
+            if model_name.startswith("models/"):
+                model_name = model_name[7:]
+            if model_name == "gemini-2.0-flash":
+                model_name = "gemini-flash-latest"
+
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={self.gemini_api_key}"
+
+            payload = {
+                "contents": [
+                    {
+                        "parts": [
+                            {"text": _GEMINI_STRICT_PROMPT},
+                            {
+                                "inline_data": {
+                                    "mime_type": "image/png",
+                                    "data": b64_image
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "temperature": 0.1,
+                    "response_mime_type": "application/json"
+                }
+            }
+
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"}
             )
 
-            if response and response.text:
-                clean_text = response.text.strip()
-                # Remove markdown code fences if model returned them
-                if clean_text.startswith("```"):
-                    clean_text = re.sub(r"^```(?:json)?\n?", "", clean_text)
-                    clean_text = re.sub(r"\n?```$", "", clean_text).strip()
-
-                parsed_json = json.loads(clean_text)
-                return parsed_json
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                resp_data = json.loads(resp.read().decode("utf-8"))
+                candidates = resp_data.get("candidates", [])
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts", [])
+                    if parts and "text" in parts[0]:
+                        clean_text = parts[0]["text"].strip()
+                        if clean_text.startswith("```"):
+                            clean_text = re.sub(r"^```(?:json)?\n?", "", clean_text)
+                            clean_text = re.sub(r"\n?```$", "", clean_text).strip()
+                        return json.loads(clean_text)
         except Exception:
             pass
         return None
