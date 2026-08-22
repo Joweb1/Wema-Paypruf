@@ -33,7 +33,10 @@ export const MerchantShell = () => {
       {/* Footer */}
       <footer className="border-t border-slate-200 bg-white py-4">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
-          <p>© 2026 Paypruf Payment Verification Systems. Secured by Wema Bank NIP APIs.</p>
+          <div className="flex items-center gap-2">
+            <img src="/wemalogo.jpg" alt="Wema Paypruf" className="h-5 w-auto object-contain rounded" />
+            <p>© 2026 Paypruf Payment Verification Systems. Secured by Wema Bank NIP APIs.</p>
+          </div>
           <div className="flex items-center gap-4">
             <span>Neural OCR Engine: v3.8</span>
             <span>Zero-Knowledge Encryption</span>

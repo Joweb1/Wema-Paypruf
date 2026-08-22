@@ -60,7 +60,16 @@ export function LandingFooter() {
                   flexShrink: 0,
                 }}
               >
-                <PayPrufLogoIcon size={44} />
+                <img
+                  src="/wemalogo.jpg"
+                  alt="Wema Paypruf Logo"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "contain",
+                    borderRadius: "8px",
+                  }}
+                />
               </div>
               <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}>
                 <span
@@ -129,23 +138,14 @@ export function LandingFooter() {
               }}
             >
               <img
-                src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSKlsAqTrP5Wm7XG7JF8v45kYaQxmIw001JvQ&s"
+                src="/wemalogo.jpg"
                 alt="Wema Bank Logo"
-                referrerPolicy="no-referrer"
                 style={{
                   width: "100%",
                   height: "100%",
                   objectFit: "contain",
                   borderRadius: "6px",
                   display: "block",
-                }}
-                onError={(e) => {
-                  e.currentTarget.style.display = "none";
-                  e.currentTarget.parentElement.innerHTML = `
-                    <div style="font-weight:900;color:#982d8d;font-size:11px;text-align:center;line-height:1.2;">
-                      WEMA<br/>BANK
-                    </div>
-                  `;
                 }}
               />
             </div>

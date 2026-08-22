@@ -175,7 +175,17 @@ export function LoginPage() {
               aria-hidden="true"
               style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}
             >
-              <PayPrufLogoIcon size={44} />
+              <img
+                src="/wemalogo.jpg"
+                alt="Wema Paypruf"
+                style={{
+                  height: "40px",
+                  width: "auto",
+                  objectFit: "contain",
+                  borderRadius: "6px",
+                  display: "block",
+                }}
+              />
               {isHolding && (
                 <svg
                   viewBox="0 0 52 52"
