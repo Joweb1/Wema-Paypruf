@@ -268,6 +268,86 @@ class OCRService:
 
         return None
 
+    def _call_nvidia_vision(self, image: Image.Image) -> Optional[Dict[str, Any]]:
+        """Backup Vision extraction via NVIDIA Cloud NIM (using requests)."""
+        import requests
+        import base64
+
+        nvidia_api_key = settings.NVIDIA_API_KEY or os.environ.get("NVIDIA_API_KEY", "")
+        if not nvidia_api_key:
+            return None
+
+        try:
+            buffer = BytesIO()
+            send_img = image.copy()
+            if max(send_img.size) > 1600:
+                send_img.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
+            send_img.save(buffer, format="PNG")
+            b64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
+
+            url = f"{settings.NVIDIA_BASE_URL.rstrip('/')}/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {nvidia_api_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            }
+
+            models_to_try = [
+                settings.NVIDIA_MODEL or "meta/llama-3.2-11b-vision-instruct",
+                "meta/llama-3.2-11b-vision-instruct",
+                "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning",
+            ]
+            seen_models = set()
+
+            for model_name in models_to_try:
+                if not model_name or model_name in seen_models:
+                    continue
+                seen_models.add(model_name)
+
+                payload = {
+                    "model": model_name,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": _GEMINI_STRICT_PROMPT},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/png;base64,{b64_image}"
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    "temperature": 0.1,
+                    "max_tokens": 1024,
+                }
+
+                try:
+                    resp = requests.post(url, headers=headers, json=payload, timeout=25)
+                    if resp.status_code == 200:
+                        resp_json = resp.json()
+                        choices = resp_json.get("choices", [])
+                        if choices:
+                            content = choices[0].get("message", {}).get("content", "").strip()
+                            if "```" in content:
+                                match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", content)
+                                if match:
+                                    content = match.group(1).strip()
+                            try:
+                                return json.loads(content)
+                            except Exception:
+                                obj_match = re.search(r"\{[\s\S]*\}", content)
+                                if obj_match:
+                                    return json.loads(obj_match.group(0))
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        return None
+
     def _local_fallback_extraction(self, image: Image.Image) -> Dict[str, Any]:
         """Local OCR & deterministic regex parsing fallback."""
         raw_text = ""
@@ -436,29 +516,38 @@ class OCRService:
         """
         image = self.preprocess_image(file_path, mime_type)
 
-        # 1. Attempt Gemini Vision structured extraction
+        # 1. Attempt Gemini Vision structured extraction (Primary AI)
         extracted_data = self._call_gemini_vision(image)
         if extracted_data:
             ai_engine = "GEMINI_VISION"
             ai_offline = False
             ai_status_message = None
         else:
-            # 2. Fallback to Local OCR if Gemini is unavailable
-            extracted_data = self._local_fallback_extraction(image)
-            ai_engine = "LOCAL_FALLBACK"
-            ai_offline = True
-            ai_status_message = "AI Vision is currently offline. Report was generated using local fallback OCR; extraction accuracy may be reduced."
+            # 2. Attempt NVIDIA Cloud Vision structured extraction (Secondary Backup AI)
+            extracted_data = self._call_nvidia_vision(image)
+            if extracted_data:
+                ai_engine = "NVIDIA_VISION"
+                ai_offline = False
+                ai_status_message = "Switched to backup AI engine (NVIDIA Cloud Vision). Receipt successfully extracted."
+            else:
+                # 3. Fallback to Local OCR if all cloud AIs are unavailable
+                extracted_data = self._local_fallback_extraction(image)
+                ai_engine = "LOCAL_FALLBACK"
+                ai_offline = True
+                ai_status_message = "AI Vision is currently offline. Report was generated using local fallback OCR; extraction accuracy may be reduced."
 
-        # 3. Schema validation with Pydantic
+        # 4. Schema validation with Pydantic
         try:
             schema_obj = GeminiExtractionSchema(**extracted_data)
             validated_dict = schema_obj.model_dump()
         except Exception:
             validated_dict = extracted_data
 
-        # 4. Backend Rules Engine validation
+        # 5. Backend Rules Engine validation
         backend_status, warnings = self._validate_backend_rules(validated_dict)
-        if ai_offline:
+        if ai_engine == "NVIDIA_VISION":
+            warnings.append("Processed via NVIDIA Cloud Vision AI backup engine.")
+        elif ai_offline:
             warnings.append("AI Vision is offline. Extraction results may have reduced accuracy; please verify details.")
 
         # Normalize amount

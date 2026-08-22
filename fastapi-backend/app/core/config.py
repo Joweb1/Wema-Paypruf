@@ -38,10 +38,15 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
-    # Google Gemini AI Multi-Key Pool (with automatic failover)
+    # Google Gemini AI Multi-Key Pool (Primary Engine)
     GEMINI_API_KEY: str = ""
     GEMINI_BACKUP_KEYS: str = ""
     GEMINI_MODEL: str = "gemini-flash-latest"
+
+    # NVIDIA Cloud Vision AI (Secondary Failover Engine)
+    NVIDIA_API_KEY: str = ""
+    NVIDIA_MODEL: str = "meta/llama-3.2-11b-vision-instruct"
+    NVIDIA_BASE_URL: str = "https://integrate.api.nvidia.com/v1"
 
     # Storage & Uploads
     UPLOAD_DIR: str = str(BASE_DIR / "uploads" / "receipts")
