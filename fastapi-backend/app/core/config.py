@@ -38,9 +38,10 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
 
-    # Google Gemini AI (for Vision OCR receipt intelligence)
+    # Google Gemini AI Multi-Key Pool (with automatic failover)
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_BACKUP_KEYS: str = ""
+    GEMINI_MODEL: str = "gemini-flash-latest"
 
     # Storage & Uploads
     UPLOAD_DIR: str = str(BASE_DIR / "uploads" / "receipts")
@@ -61,6 +62,18 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore"
     )
+
+    def get_gemini_keys(self) -> List[str]:
+        """Return all configured Gemini API keys in priority order for automatic failover."""
+        keys = []
+        if self.GEMINI_API_KEY and self.GEMINI_API_KEY.strip():
+            keys.append(self.GEMINI_API_KEY.strip())
+        if self.GEMINI_BACKUP_KEYS and self.GEMINI_BACKUP_KEYS.strip():
+            for k in self.GEMINI_BACKUP_KEYS.split(","):
+                k_clean = k.strip()
+                if k_clean and k_clean not in keys:
+                    keys.append(k_clean)
+        return keys
 
 
 settings = Settings()

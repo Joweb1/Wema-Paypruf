@@ -61,6 +61,8 @@ _KNOWN_BANKS = (
     "rubies bank",
     "vfd microfinance bank",
     "taj bank",
+    "demo bank",
+    "wema bank (demo sandbox)",
 )
 
 _GEMINI_STRICT_PROMPT = """You are a specialized banking document and receipt intelligence extraction engine for Nigerian bank transfer slips.
@@ -179,70 +181,74 @@ class OCRService:
     # =========================================================================
 
     def _call_gemini_vision(self, image: Image.Image) -> Optional[Dict[str, Any]]:
-        """Send image to Google Gemini Vision with strict JSON prompt via REST API."""
-        if not self.gemini_api_key:
+        """Send image to Google Gemini Vision with strict JSON prompt via REST API with multi-key failover."""
+        keys = settings.get_gemini_keys()
+        if not keys:
             return None
 
-        try:
-            import base64
-            import urllib.request
-            import urllib.error
+        import base64
+        import urllib.request
+        import urllib.error
 
-            buffer = BytesIO()
-            # Downscale slightly for fast and reliable network transport
-            send_img = image.copy()
-            if max(send_img.size) > 1600:
-                send_img.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
-            send_img.save(buffer, format="PNG")
-            b64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        buffer = BytesIO()
+        # Downscale slightly for fast and reliable network transport
+        send_img = image.copy()
+        if max(send_img.size) > 1600:
+            send_img.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
+        send_img.save(buffer, format="PNG")
+        b64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
-            model_name = settings.GEMINI_MODEL or "gemini-flash-latest"
-            if model_name.startswith("models/"):
-                model_name = model_name[7:]
-            if model_name == "gemini-2.0-flash":
-                model_name = "gemini-flash-latest"
+        model_name = settings.GEMINI_MODEL or "gemini-flash-latest"
+        if model_name.startswith("models/"):
+            model_name = model_name[7:]
+        if model_name == "gemini-2.0-flash":
+            model_name = "gemini-flash-latest"
 
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={self.gemini_api_key}"
-
-            payload = {
-                "contents": [
-                    {
-                        "parts": [
-                            {"text": _GEMINI_STRICT_PROMPT},
-                            {
-                                "inline_data": {
-                                    "mime_type": "image/png",
-                                    "data": b64_image
-                                }
+        payload = {
+            "contents": [
+                {
+                    "parts": [
+                        {"text": _GEMINI_STRICT_PROMPT},
+                        {
+                            "inline_data": {
+                                "mime_type": "image/png",
+                                "data": b64_image
                             }
-                        ]
-                    }
-                ],
-                "generationConfig": {
-                    "temperature": 0.1,
-                    "response_mime_type": "application/json"
+                        }
+                    ]
                 }
+            ],
+            "generationConfig": {
+                "temperature": 0.1,
+                "response_mime_type": "application/json"
             }
+        }
+        encoded_data = json.dumps(payload).encode("utf-8")
 
+        # Rotate through all available keys in priority order
+        for idx, key in enumerate(keys):
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={key}"
             req = urllib.request.Request(
                 url,
-                data=json.dumps(payload).encode("utf-8"),
+                data=encoded_data,
                 headers={"Content-Type": "application/json"}
             )
+            try:
+                with urllib.request.urlopen(req, timeout=12) as resp:
+                    resp_data = json.loads(resp.read().decode("utf-8"))
+                    candidates = resp_data.get("candidates", [])
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        if parts and "text" in parts[0]:
+                            clean_text = parts[0]["text"].strip()
+                            if clean_text.startswith("```"):
+                                clean_text = re.sub(r"^```(?:json)?\n?", "", clean_text)
+                                clean_text = re.sub(r"\n?```$", "", clean_text).strip()
+                            return json.loads(clean_text)
+            except Exception:
+                # If key fails due to 403, 429 quota, 503 high demand, failover to next key
+                continue
 
-            with urllib.request.urlopen(req, timeout=12) as resp:
-                resp_data = json.loads(resp.read().decode("utf-8"))
-                candidates = resp_data.get("candidates", [])
-                if candidates:
-                    parts = candidates[0].get("content", {}).get("parts", [])
-                    if parts and "text" in parts[0]:
-                        clean_text = parts[0]["text"].strip()
-                        if clean_text.startswith("```"):
-                            clean_text = re.sub(r"^```(?:json)?\n?", "", clean_text)
-                            clean_text = re.sub(r"\n?```$", "", clean_text).strip()
-                        return json.loads(clean_text)
-        except Exception:
-            pass
         return None
 
     def _local_fallback_extraction(self, image: Image.Image) -> Dict[str, Any]:
