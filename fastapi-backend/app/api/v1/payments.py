@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import List, Optional
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
@@ -67,15 +68,19 @@ async def upload_merchant_receipt(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Upload transfer receipt directly from merchant view and extract OCR fields."""
+    """Upload transfer receipt directly from merchant view and extract AI Vision / OCR fields."""
     payment = payment_service.get_payment_by_id(db, payment_id)
 
     # Save file
     filename, file_path, size_bytes = await storage_service.save_upload_file(file)
     preview_url = storage_service.get_preview_url(filename)
 
-    # Run ML OCR
+    # Run AI Vision / OCR
     extracted = ocr_service.process_receipt(file_path, file.content_type or "image/png")
+
+    field_ev_str = json.dumps(extracted.field_evidence) if extracted.field_evidence else None
+    auth_ind_str = json.dumps(extracted.authenticity_indicators) if extracted.authenticity_indicators else None
+    missing_str = json.dumps(extracted.missing_fields) if extracted.missing_fields else None
 
     # Upsert Receipt record
     if payment.receipt:
@@ -93,8 +98,14 @@ async def upload_merchant_receipt(
         rec.sender_name = extracted.sender_name or payment.customer_name
         rec.recipient_name = extracted.recipient_name or (current_user.account_name if current_user else "Merchant")
         rec.account_hint = extracted.recipient_account or (current_user.wema_account_number if current_user else "0123456789")
+        rec.sender_account = extracted.sender_account
+        rec.transaction_time = extracted.transaction_time
         rec.confidence = extracted.confidence
         rec.raw_text = extracted.raw_text
+        rec.field_evidence_json = field_ev_str
+        rec.authenticity_indicators_json = auth_ind_str
+        rec.missing_fields_json = missing_str
+        rec.backend_validation_status = extracted.backend_validation_status
     else:
         rec = Receipt(
             payment_id=payment.id,
@@ -111,8 +122,14 @@ async def upload_merchant_receipt(
             sender_name=extracted.sender_name or payment.customer_name,
             recipient_name=extracted.recipient_name or (current_user.account_name if current_user else "Merchant"),
             account_hint=extracted.recipient_account or (current_user.wema_account_number if current_user else "0123456789"),
+            sender_account=extracted.sender_account,
+            transaction_time=extracted.transaction_time,
             confidence=extracted.confidence,
-            raw_text=extracted.raw_text
+            raw_text=extracted.raw_text,
+            field_evidence_json=field_ev_str,
+            authenticity_indicators_json=auth_ind_str,
+            missing_fields_json=missing_str,
+            backend_validation_status=extracted.backend_validation_status,
         )
         db.add(rec)
 

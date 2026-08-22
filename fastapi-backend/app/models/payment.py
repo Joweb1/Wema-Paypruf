@@ -105,15 +105,42 @@ class Receipt(Base):
     sender_name = Column(String(255), nullable=True)
     recipient_name = Column(String(255), nullable=True)
     account_hint = Column(String(64), nullable=True)
+    sender_account = Column(String(64), nullable=True)
     transaction_date = Column(DateTime(timezone=True), nullable=True)
+    transaction_time = Column(String(32), nullable=True)
     confidence = Column(Float, default=0.95, nullable=False)
     raw_text = Column(Text, nullable=True)
     warnings_json = Column(Text, nullable=True)
+    field_evidence_json = Column(Text, nullable=True)
+    authenticity_indicators_json = Column(Text, nullable=True)
+    missing_fields_json = Column(Text, nullable=True)
+    backend_validation_status = Column(String(64), default="VALID_CLAIM", nullable=False)
     created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     payment = relationship("Payment", back_populates="receipt")
 
     def to_dict(self) -> dict:
+        fe = {}
+        if self.field_evidence_json:
+            try:
+                fe = json.loads(self.field_evidence_json)
+            except Exception:
+                pass
+
+        ai = {}
+        if self.authenticity_indicators_json:
+            try:
+                ai = json.loads(self.authenticity_indicators_json)
+            except Exception:
+                pass
+
+        mf = []
+        if self.missing_fields_json:
+            try:
+                mf = json.loads(self.missing_fields_json)
+            except Exception:
+                pass
+
         return {
             "original_filename": self.original_filename,
             "mime_type": self.mime_type,
@@ -127,9 +154,15 @@ class Receipt(Base):
             "sender_name": self.sender_name,
             "recipient_name": self.recipient_name,
             "account_hint": self.account_hint,
+            "sender_account": self.sender_account,
             "transaction_date": self.transaction_date.isoformat() if self.transaction_date else None,
+            "transaction_time": self.transaction_time,
             "confidence": self.confidence,
             "raw_text": self.raw_text,
+            "field_evidence": fe,
+            "authenticity_indicators": ai,
+            "missing_fields": mf,
+            "backend_validation_status": self.backend_validation_status,
         }
 
 

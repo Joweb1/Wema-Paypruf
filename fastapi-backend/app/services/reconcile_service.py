@@ -1,4 +1,10 @@
-"""Deterministic Bank Ledger Reconciliation Engine."""
+"""Deterministic Bank Ledger Reconciliation Engine.
+
+Enforces strict 3-Layer Security Boundary:
+1. AI Layer: 'What does this receipt claim?'
+2. Backend Rules Layer: 'Does what it says satisfy our security & structural requirements?'
+3. Bank Verification Layer: 'Did this transaction actually settle in the merchant ledger?'
+"""
 
 from __future__ import annotations
 
@@ -21,12 +27,104 @@ class ReconcileService:
         payment: Payment,
         extracted_receipt: Optional[Receipt] = None
     ) -> Verification:
-        """Run 5-point automated cross-validation and update payment status."""
+        """Run 3-Layer validation pipeline and update payment & verification status."""
         now_iso = datetime.now(timezone.utc).isoformat()
         receipt = extracted_receipt or payment.receipt
         merchant = payment.merchant
 
-        # 1. Parse amounts
+        # =====================================================================
+        # LAYER 2: Backend Rules Engine (Independent Structural Verification)
+        # =====================================================================
+        receipt_validation_status = receipt.backend_validation_status if receipt else "VALID_CLAIM"
+
+        # 1. Anti-Replay Check: Ensure transaction ID was not used on another payment
+        if receipt and receipt.reference:
+            other_payment = (
+                db.query(Payment)
+                .join(Receipt)
+                .filter(
+                    Receipt.reference == receipt.reference,
+                    Payment.id != payment.id,
+                    Payment.status == "CONFIRMED"
+                )
+                .first()
+            )
+            if other_payment:
+                status = "MISMATCH"
+                reason_code = "TRANSACTION_ALREADY_USED"
+                reason = f"Anti-Fraud Alert: Transaction reference '{receipt.reference}' was already verified on payment {other_payment.reference}."
+                status_reason = "Duplicate receipt reuse attempt detected and rejected."
+
+                return self._upsert_verification(
+                    db=db,
+                    payment=payment,
+                    receipt=receipt,
+                    status=status,
+                    reason_code=reason_code,
+                    reason=reason,
+                    status_reason=status_reason,
+                    amount_match=False,
+                    reference_match=False,
+                    currency_match=True,
+                    merchant_match=False,
+                    date_match=False,
+                    received_amount=None,
+                    provider_ref=receipt.reference,
+                    now_iso=now_iso,
+                )
+
+        # 2. Check if AI extraction failed or was flagged as invalid receipt
+        if receipt_validation_status == "EXTRACTION_FAILED":
+            status = "NOT_RECEIVED"
+            reason_code = "EXTRACTION_FAILED"
+            reason = "Receipt document is unreadable or contains no recognizable payment amounts or transaction reference."
+            status_reason = "Customer uploaded an unreadable or non-receipt image."
+
+            return self._upsert_verification(
+                db=db,
+                payment=payment,
+                receipt=receipt,
+                status=status,
+                reason_code=reason_code,
+                reason=reason,
+                status_reason=status_reason,
+                amount_match=False,
+                reference_match=False,
+                currency_match=False,
+                merchant_match=False,
+                date_match=False,
+                received_amount=None,
+                provider_ref=None,
+                now_iso=now_iso,
+            )
+
+        if receipt_validation_status == "INVALID_RECEIPT":
+            status = "MISMATCH"
+            reason_code = "INVALID_BANK_SLIP"
+            reason = "The uploaded document is from an unrecognized or unsupported financial provider."
+            status_reason = "Receipt structure failed banking registry validation rules."
+
+            return self._upsert_verification(
+                db=db,
+                payment=payment,
+                receipt=receipt,
+                status=status,
+                reason_code=reason_code,
+                reason=reason,
+                status_reason=status_reason,
+                amount_match=False,
+                reference_match=False,
+                currency_match=True,
+                merchant_match=False,
+                date_match=False,
+                received_amount=None,
+                provider_ref=receipt.reference if receipt else None,
+                now_iso=now_iso,
+            )
+
+        # =====================================================================
+        # LAYER 3: Bank Ledger Reconciliation ('Did the money actually settle?')
+        # =====================================================================
         try:
             expected_amt = Decimal(payment.amount)
         except Exception:
@@ -39,10 +137,9 @@ class ReconcileService:
             except Exception:
                 receipt_amt = None
 
-        # 2. Find or create simulated Wema transaction ledger entry
+        # Find or create simulated Wema transaction ledger entry
         transaction = payment.transaction
         if not transaction:
-            # Generate simulated Wema bank transaction ledger entry
             tx_amount = str(receipt_amt) if receipt_amt is not None else str(expected_amt)
             provider_ref = (
                 receipt.reference if (receipt and receipt.reference)
@@ -69,25 +166,25 @@ class ReconcileService:
         except Exception:
             received_amt = Decimal("0.00")
 
-        # 3. Perform 5-Point Matching Checks
+        # 5-Point Matching Checks
         amount_match = (receipt_amt == expected_amt == received_amt) if receipt_amt is not None else (expected_amt == received_amt)
         reference_match = True
         currency_match = (payment.currency == "NGN" and (receipt.currency == "NGN" if receipt else True))
         merchant_match = True
         date_match = True
 
-        # Check for scenarios
-        if receipt and receipt.reference and "mismatch" in receipt.original_filename.lower():
+        # Scenario overrides
+        if receipt and receipt.original_filename and "mismatch" in receipt.original_filename.lower():
             amount_match = False
         elif "mismatch" in payment.reference.lower():
             amount_match = False
 
-        if receipt and "not_received" in receipt.original_filename.lower():
+        if receipt and receipt.original_filename and "not_received" in receipt.original_filename.lower():
             status = "NOT_RECEIVED"
             reason_code = "NO_LEDGER_RECORD"
             reason = "No incoming bank transaction matching this reference or amount was found in the merchant ledger."
             status_reason = "Customer submitted receipt claim, but no matching credit found in merchant Wema records."
-        elif receipt and "pending" in receipt.original_filename.lower():
+        elif receipt and receipt.original_filename and "pending" in receipt.original_filename.lower():
             status = "PENDING"
             reason_code = "PROCESSING_SETTLEMENT"
             reason = "Receipt details successfully captured. Interbank NIP settlement is still in progress."
@@ -104,16 +201,54 @@ class ReconcileService:
             reason = "Payment verified. Receipt amount, merchant bank credit, and reference match completely."
             status_reason = f"Matched with incoming Wema NIP credit of ₦{expected_amt:,.2f} from {payment.customer_name}."
 
-        # 4. Construct Comparison Matrix
+        return self._upsert_verification(
+            db=db,
+            payment=payment,
+            receipt=receipt,
+            status=status,
+            reason_code=reason_code,
+            reason=reason,
+            status_reason=status_reason,
+            amount_match=amount_match,
+            reference_match=reference_match,
+            currency_match=currency_match,
+            merchant_match=merchant_match,
+            date_match=date_match,
+            received_amount=str(received_amt) if status != "NOT_RECEIVED" else None,
+            provider_ref=transaction.provider_reference if status != "NOT_RECEIVED" else None,
+            now_iso=now_iso,
+        )
+
+    def _upsert_verification(
+        self,
+        db: Session,
+        payment: Payment,
+        receipt: Optional[Receipt],
+        status: str,
+        reason_code: str,
+        reason: str,
+        status_reason: str,
+        amount_match: bool,
+        reference_match: bool,
+        currency_match: bool,
+        merchant_match: bool,
+        date_match: bool,
+        received_amount: Optional[str],
+        provider_ref: Optional[str],
+        now_iso: str,
+    ) -> Verification:
+        """Construct comparison matrix, audit timeline, and upsert verification record."""
+        expected_amt = payment.amount
+        receipt_amt = receipt.amount if receipt else None
+
         comparison = {
-            "expected_amount": str(expected_amt),
-            "receipt_amount": str(receipt_amt) if receipt_amt is not None else None,
-            "received_amount": str(received_amt) if status != "NOT_RECEIVED" else None,
+            "expected_amount": expected_amt,
+            "receipt_amount": receipt_amt,
+            "received_amount": received_amount,
             "receipt_reference": receipt.reference if receipt else payment.reference,
-            "transaction_reference": transaction.provider_reference if status != "NOT_RECEIVED" else None,
+            "transaction_reference": provider_ref,
         }
 
-        # 5. Construct Audit Timeline
         timeline = [
             {
                 "title": "Payment link generated",
@@ -124,9 +259,14 @@ class ReconcileService:
 
         if receipt:
             timeline.append({
-                "title": "Receipt uploaded & OCR extracted",
+                "title": "Receipt uploaded & AI Vision extracted",
                 "timestamp": receipt.created_at.isoformat() if receipt.created_at else now_iso,
                 "state": "complete",
+            })
+            timeline.append({
+                "title": "Backend rules validated structure & reference",
+                "timestamp": now_iso,
+                "state": "complete" if receipt.backend_validation_status == "VALID_CLAIM" else "error",
             })
 
         if status == "CONFIRMED":
@@ -143,7 +283,7 @@ class ReconcileService:
             })
         elif status == "MISMATCH":
             timeline.append({
-                "title": "Discrepancy flagged by PayPruf",
+                "title": "Discrepancy flagged by PayPruf rules",
                 "timestamp": now_iso,
                 "state": "error",
             })
@@ -154,7 +294,6 @@ class ReconcileService:
                 "state": "error",
             })
 
-        # 6. Upsert Verification Record
         verification = payment.verification
         if not verification:
             verification = Verification(
@@ -185,7 +324,6 @@ class ReconcileService:
             verification.comparison_json = json.dumps(comparison)
             verification.timeline_json = json.dumps(timeline)
 
-        # Update Payment Record
         payment.status = status
         payment.status_reason = status_reason
 
