@@ -21,7 +21,7 @@ export function Brand({ publicHome = false, isHeader = true, size = 38 }) {
         />
       </span>
       <span className="brand-lockup">
-        <strong>{isHeader ? "Wema Paypruf" : "PayPruf"}</strong>
+        <strong>{isHeader ? "Paypruf" : "PayPruf"}</strong>
         <small>Proof beyond the receipt</small>
       </span>
     </Link>
