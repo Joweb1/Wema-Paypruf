@@ -1,152 +1,379 @@
-# PayPruf — AI-Powered Payment Receipt Intelligence & Bank Ledger Reconciliation
+# PayPruf — AI-Powered Payment Verification & Reconciliation
 
-PayPruf helps online merchants eliminate fake-payment disputes and verify customer bank transfers with 99.9% precision. It combines **Google Gemini 3.5 Multimodal Vision AI**, **NVIDIA Cloud Vision AI Backup**, **Local Fallback OCR**, and **Deterministic Wema Bank Ledger Reconciliation** with a React dashboard.
-
----
-
-## What It Does
-
-- **Payment Requests & Custom Links:** Merchants generate payment links with expected amounts, customer names, and order descriptions.
-- **AI Receipt Intelligence & Multi-Tier Failover:**
-  - **Tier 1 (Primary):** Google Gemini 3.5 Vision AI (`gemini-3.5-flash`, `gemini-flash-lite`) with multi-key failover pool.
-  - **Tier 2 (Secondary Backup):** NVIDIA Cloud Vision AI (`meta/llama-3.2-11b-vision-instruct` / `nvidia/nemotron`).
-  - **Tier 3 (Offline Fallback):** In-process Local RapidOCR and deterministic regex extraction.
-- **Dual-Criteria Verification:** Strictly matches both **Transfer Amount** and **Beneficiary/Merchant Name** against registered account details.
-- **AI Forensics & Tampering Detection:** Calculates originality ratings (0–100%) and detects altered typography, fonts, and synthetic slips.
-- **Direct Public Receipt Upload:** Visitors can upload a transfer slip directly to verify against any merchant account (`/receipt-upload/:accountName`).
-- **Interactive AI Key Monitor:** Live execution trace modal with a real-time key ping & diagnostics test suite in the UI.
+## Team Members
+- [Name 1]
+- [Name 2]
+- [Name 3]
 
 ---
 
-## Project Structure
+## 🚀 Live Demo
 
+- **Live Application:** [Add deployed application URL]
+- **Backend API:** [Add live backend API URL]
+- **Recorded Demo:** [Add Loom/demo video URL]
+
+---
+
+## 🎯 The Problem
+
+### How might we make bank-transfer payments more trustworthy and easier to reconcile for both customers and merchants?
+
+When a customer transfers money to an online merchant, the customer may see a successful transaction while the merchant may not yet see the money in their account. This creates uncertainty, repeated checking, fake or misleading receipt claims, and payment disputes.
+
+Customers often have to rely on the merchant to confirm whether the money arrived, while merchants manually compare receipts with their bank transactions.
+
+**PayPruf addresses this trust gap by creating a verification layer between the customer, payment receipt, and the merchant's bank transaction record.**
+
+---
+
+## ✨ Our Solution
+
+**PayPruf is an AI-powered payment verification and reconciliation platform for online merchants and their customers.**
+
+A merchant creates a payment request/link. After making the transfer through their normal banking app, the customer uploads the payment receipt to PayPruf.
+
+PayPruf then:
+
+1. Extracts transaction information from the receipt using AI.
+2. Validates the information contained in the receipt.
+3. Matches the payment against the merchant's available bank transaction records.
+4. Tells the customer whether the merchant has actually received the payment.
+5. Gives the merchant a dashboard showing verified, pending, unmatched, and other payment activity.
+6. Helps merchants reconcile incoming payments without manually checking receipts one by one.
+
+> **Don't just trust the receipt. Verify the payment.**
+
+---
+
+## 🔄 Core User Flow
+
+```text
+MERCHANT
+   │
+   ├── Creates payment request/link
+   │
+   ▼
+CUSTOMER
+   │
+   ├── Opens PayPruf payment link
+   ├── Views merchant/payment details
+   ├── Makes transfer through their bank app
+   └── Uploads payment receipt
+            │
+            ▼
+       PAYPRUF AI
+            │
+            ├── Extract receipt data
+            ├── Validate transaction details
+            └── Match against merchant ledger
+                     │
+             ┌───────┴────────┐
+             ▼                ▼
+        VERIFIED           PENDING /
+        PAYMENT            UNMATCHED
+             │                │
+             └───────┬────────┘
+                     ▼
+             MERCHANT DASHBOARD
+                     │
+                     ├── Payment status
+                     ├── Customer details
+                     ├── Transaction reference
+                     └── Reconciliation history
 ```
-.
-├── frontend/          # React 19 + Vite 6 + Tailwind CSS client
-├── fastapi-backend/   # High-performance FastAPI REST backend with ML OCR & PostgreSQL/Supabase
-├── docs/              # API contracts and architecture notes
-├── .env.example       # Shared environment configuration template
+
+---
+
+## 💡 Key Features
+
+### 1. AI Payment Receipt Verification
+
+PayPruf uses AI to read and extract important transaction information from uploaded receipts, including:
+
+- Amount
+- Sender/recipient details
+- Bank/provider
+- Transaction reference
+- Transaction date/time
+- Payment status
+
+The extracted information is then used as part of the verification process.
+
+### 2. Payment Requests & Custom Links
+
+Merchants can generate a PayPruf payment link containing their payment details and, when required, an expected payment amount.
+
+Instead of repeatedly sending account details and asking customers to send receipts through social media, the merchant can share one PayPruf link.
+
+### 3. Bank Ledger Reconciliation
+
+PayPruf compares information extracted from the customer's receipt with the merchant's available bank transaction records.
+
+This helps determine whether the payment has actually reached the merchant.
+
+### 4. Merchant Dashboard
+
+Merchants can see:
+
+- Payments received
+- Verified payments
+- Pending/unmatched payments
+- Payment amounts
+- Customer/payment references
+- Reconciliation activity
+- Simple payment statistics
+
+### 5. Customer Payment Confirmation
+
+Customers receive a clear status explaining whether the merchant has received the money.
+
+This reduces the need for customers to repeatedly ask:
+
+> "Have you seen the money?"
+
+### 6. Fraud & Account Risk Reports
+
+PayPruf also provides a customer-protection feature.
+
+Before transferring money to an unfamiliar merchant, a customer can check whether the account has previous reports associated with potentially fraudulent activity.
+
+Customers can also report problematic transactions, such as paying for a product or service and not receiving what was promised.
+
+Reports are treated as **risk signals, not automatic proof of fraud**. PayPruf does not guarantee that an account is safe or fraudulent.
+
+### 7. Accessibility
+
+The prototype includes accessibility-focused interactions and screen-reader support to demonstrate how financial services can be made easier to use for visually impaired customers.
+
+---
+
+## 🧠 Verification Logic
+
+PayPruf does not treat an uploaded image as proof simply because it looks like a bank receipt.
+
+```text
+Receipt Upload
+      ↓
+AI Extraction
+      ↓
+Transaction Data Validation
+      ↓
+Expected Amount / Merchant Check
+      ↓
+Bank Transaction Lookup
+      ↓
+Transaction Matching
+      ↓
+Final Status
+```
+
+### Possible Outcomes
+
+- ✅ **Verified** — receipt information matches a successful merchant-side transaction.
+- 🟡 **Pending** — receipt appears valid, but the merchant-side transaction has not been confirmed yet.
+- ❌ **Unverified** — required information could not be validated or the transaction could not be matched.
+- ⚠️ **Mismatch** — important details such as amount, beneficiary, or transaction reference do not match.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Frontend:** React + Vite + Tailwind CSS
+- **Backend:** FastAPI (Python)
+- **Database:** PostgreSQL
+- **Database/Backend Infrastructure:** Supabase
+- **AI:** Google Gemini API
+- **Bank Integration:** Wema Bank Sandbox/Mock API
+- **Version Control:** Git + GitHub
+- **Deployment:** [Add deployment platform]
+
+FastAPI provides the application REST API, while PostgreSQL is the relational database used by the application. Supabase provides the hosted PostgreSQL infrastructure and supporting database services.
+
+---
+
+## 🏗️ Architecture
+
+```text
+┌──────────────────────────┐
+│       React Frontend     │
+│  Merchant + Customer UI  │
+└────────────┬─────────────┘
+             │ REST API
+             ▼
+┌──────────────────────────┐
+│     FastAPI Backend      │
+│                          │
+│ Auth / Payments / Links  │
+│ Verification / Reports   │
+│ Reconciliation / API     │
+└───────┬─────────┬────────┘
+        │         │
+        │         └──────────────────┐
+        ▼                            ▼
+┌───────────────┐          ┌─────────────────┐
+│  PostgreSQL   │          │  Google Gemini  │
+│   via         │          │ Receipt AI      │
+│   Supabase    │          │ Extraction      │
+└───────────────┘          └─────────────────┘
+        │
+        ▼
+┌──────────────────────────┐
+│ Wema Bank Sandbox / Mock │
+│ Transaction Verification │
+└──────────────────────────┘
+```
+
+---
+
+## 📁 Project Structure
+
+```text
+paypruf/
+├── frontend/
+│   ├── src/
+│   ├── components/
+│   ├── pages/
+│   └── services/
+│
+├── backend/
+│   ├── app/
+│   │   ├── api/
+│   │   ├── models/
+│   │   ├── schemas/
+│   │   ├── services/
+│   │   ├── integrations/
+│   │   └── main.py
+│   ├── tests/
+│   └── requirements.txt
+│
+├── ml/
+│   ├── receipt/
+│   └── prompts/
+│
+├── docs/
+├── .env.example
 └── README.md
 ```
 
 ---
 
-## Prerequisites
+## ⚙️ How to Set Up and Run Locally
 
-- **Node.js:** v18.0.0 or higher
-- **Python:** v3.10 or higher
-- **Git:** for version control
+### Prerequisites
 
----
+- Python 3.10+
+- Node.js 18+
+- Git
+- PostgreSQL/Supabase project
+- Google Gemini API key
+- Wema Bank sandbox/mock API credentials
 
-## Getting Started (Quick Setup)
-
-### 1. Set Up and Start the FastAPI Backend
-
-Open a terminal and run:
+### 1. Clone the repository
 
 ```bash
-# Navigate to the backend directory
-cd fastapi-backend
-
-# Create a Python virtual environment (if not already created)
-python3 -m venv .venv
-
-# Activate the virtual environment
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-
-# Install required Python packages
-pip install -r requirements.txt
-
-# Configure environment variables
-cp .env.example .env
-
-# Start the development server with live-reloading
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+git clone [YOUR_REPOSITORY_URL]
+cd paypruf
 ```
 
-> **Backend Access Points:**
-> - **API Base URL:** [http://localhost:8000](http://localhost:8000)
-> - **Interactive Swagger Docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
-> - **ReDoc Documentation:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
-> - **Health Check:** [http://localhost:8000/health](http://localhost:8000/health)
-
----
-
-### 2. Set Up and Start the React Frontend
-
-Open a second terminal and run:
+### 2. Start the FastAPI backend
 
 ```bash
-# Navigate to the frontend directory
+cd backend
+
+python -m venv .venv
+
+# macOS/Linux
+source .venv/bin/activate
+
+# Windows
+.venv\Scripts\activate
+
+pip install -r requirements.txt
+```
+
+Create a `.env` file:
+
+```env
+DATABASE_URL=...
+GEMINI_API_KEY=...
+WEMA_API_BASE_URL=...
+WEMA_API_KEY=...
+JWT_SECRET=...
+```
+
+Run the backend:
+
+```bash
+uvicorn app.main:app --reload --port 8000
+```
+
+Backend:
+
+```text
+http://localhost:8000
+```
+
+API documentation:
+
+```text
+http://localhost:8000/docs
+```
+
+### 3. Start the React frontend
+
+```bash
 cd frontend
-
-# Install frontend dependencies
 npm install
-
-# Start the Vite development server
 npm run dev
 ```
 
-> **Frontend Access Point:**
-> - **Web Application:** [http://localhost:5173](http://localhost:5173) (or `http://localhost:3000`)
+---
+
+## 🔐 Security & Trust
+
+PayPruf is a payment verification and reconciliation layer, not a replacement for a bank.
+
+The hackathon prototype uses sandbox/mock transaction data and should not be interpreted as access to production banking systems.
+
+Fraud reports are treated as risk signals rather than definitive legal or criminal determinations.
+
+Sensitive API keys and credentials should be stored in environment variables and never committed to GitHub.
 
 ---
 
-## Running in the Background (Persistent Mode)
+## 🌍 Future Vision
 
-If you prefer to run both backend and frontend in the background:
+PayPruf starts with merchant-side payment verification and reconciliation but can expand beyond a single banking ecosystem.
 
-```bash
-# Start backend in background
-cd fastapi-backend
-nohup .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload > backend.log 2>&1 &
+Future possibilities include:
 
-# Start frontend in background
-cd ../frontend
-nohup npm run dev -- --host 0.0.0.0 > frontend.log 2>&1 &
-```
+- Multi-bank transaction verification
+- Automated payment reconciliation
+- Payment reversal monitoring
+- Merchant reputation/risk signals
+- Advanced fraud detection
+- Business financial analytics
+- E-commerce integrations
+- Payment-provider integrations
+- More accessible banking experiences
 
----
-
-## Running Backend Tests
-
-Run all unit and integration tests (17 passing tests):
-
-```bash
-cd fastapi-backend
-PYTHONPATH=. .venv/bin/python -m pytest -v
-```
+The long-term vision is to make bank transfers **easier to verify, easier to reconcile, and safer to trust**.
 
 ---
 
-## Environment Variables (`fastapi-backend/.env`)
+## 🏆 Hackathon Context
 
-| Variable | Description | Default / Example |
-| :--- | :--- | :--- |
-| `DATABASE_URL` | PostgreSQL (Local/Supabase) or SQLite database URI | `sqlite:///./data/paypruf.db` |
-| `JWT_SECRET` | Secret key for signing authentication Bearer tokens | `paypruf_secure_jwt_secret_key_2026_super_secret` |
-| `GEMINI_API_KEY` | Primary Google Gemini API key | `your_gemini_api_key_here` |
-| `GEMINI_BACKUP_KEYS` | Comma-separated backup Gemini API keys for failover | `backup_key_1,backup_key_2` |
-| `GEMINI_MODEL` | Preferred Gemini vision model | `gemini-3.5-flash` |
-| `NVIDIA_API_KEY` | NVIDIA Cloud NIM API key for secondary backup vision | `your_nvidia_api_key_here` |
-| `NVIDIA_MODEL` | Preferred NVIDIA vision model | `meta/llama-3.2-11b-vision-instruct` |
-| `UPLOAD_DIR` | Storage path for uploaded receipts | `./uploads/receipts` |
+PayPruf was developed for **Hackaholics 7.0** as a practical application of AI and banking infrastructure to a common financial problem: uncertainty around bank-transfer payments.
+
+The project demonstrates how a verification layer can connect:
+
+**Customer → Payment Receipt → AI Verification → Bank Ledger → Merchant**
+
+instead of making either party rely solely on screenshots, receipts, or verbal confirmation.
 
 ---
 
-## Default Demo Credentials
+## 📄 License
 
-The backend automatically seeds a demo merchant account on startup:
-
-- **Wema Account Number:** `0123456789`
-- **Email:** `tolafashion@example.com`
-- **Phone:** `08012345678`
-- **Password:** `demopassword123`
-- **One-Click Login:** Available directly on the login page via the **"Demo Merchant"** button.
-
----
-
-## License
-
-Proprietary — Wema PayPruf Platform
+Proprietary — PayPruf Hackathon Project
