@@ -17,4 +17,5 @@ jobs:
       - name: Push to Hackathon Repository
         run: |
           git remote add hackathon https://${{ secrets.SYNC_PAT }}@github.com/Wema-Hackaholics-Hackathon/wema-hackaholics7-0-hackathon-yabatech-project-apex-team.git
-          git push --force --prune hackathon "refs/heads/*:refs/heads/*" "refs/tags/*:refs/tags/*"
+          git push hackathon main
+          git push hackathon --tags
