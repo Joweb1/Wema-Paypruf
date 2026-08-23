@@ -1,0 +1,20 @@
+name: Mirror to Hackathon Repo
+
+on:
+  push:
+    branches:
+      - '**'  # Triggers on push to any branch
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history and tags
+
+      - name: Push to Hackathon Repository
+        run: |
+          git remote add hackathon https://${{ secrets.SYNC_PAT }}@github.com/Wema-Hackaholics-Hackathon/wema-hackaholics7-0-hackathon-yabatech-project-apex-team.git
+          git push --force --prune hackathon "refs/heads/*:refs/heads/*" "refs/tags/*:refs/tags/*"
