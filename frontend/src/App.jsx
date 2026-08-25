@@ -5,6 +5,7 @@ import { GuestOnly, RequireAuth, RequireOnboarding } from "./auth/guards";
 import { MerchantShell, PublicShell } from "./components/AppShell";
 import { ToastRegion } from "./components/Toast";
 import { ToastProvider } from "./hooks/useToast";
+import { PayPrufVoiceReader } from "./accessibility/PayPrufVoiceReader";
 import { CustomerPaymentPage } from "./pages/CustomerPaymentPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LandingPage } from "./pages/LandingPage";
@@ -120,6 +121,7 @@ export function App() {
               {/* Fallback */}
               <Route path="*" element={<NotFoundPage />} />
             </Routes>
+            <PayPrufVoiceReader />
             <ToastRegion />
           </BrowserRouter>
         </AuthProvider>
