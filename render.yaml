@@ -1,0 +1,123 @@
+# render.yaml — PayPruf monorepo deployment on Render
+# Both frontend (/frontend) and backend (/fastapi-backend) are in the same repository.
+# Render deploys each service independently from its subdirectory.
+#
+# Services:
+#   - Backend: FastAPI Web Service (Free tier)
+#   - Frontend: Static Site served via Docker + nginx (Free tier)
+#   - Database: PostgreSQL add-on (Free tier, create manually after first deploy)
+#
+# Deploy steps:
+#   1. Push this file to your repo's main branch
+#   2. In Render: New → "Deploy from YAML" (or use render.yaml path in dashboard)
+#   3. Render auto-creates Backend and Frontend services
+#   4. Manually add PostgreSQL database named "paypruf-db"
+#   5. Update CORS_ORIGINS and VITE_API_BASE_URL values post-deploy
+
+services:
+  # ============================================================
+  # BACKEND: FastAPI Web Service
+  # Source: ./fastapi-backend/ (relative to repo root)
+  # ============================================================
+  - type: web
+    name: paypruf-backend
+    env: docker
+    plan: free
+    # Build context is repo root; Dockerfile path is relative to it
+    dockerfilePath: ./fastapi-backend/Dockerfile
+    # Build context includes everything at repo root
+    buildContext: .
+    autoDeploy: true
+    healthCheckPath: /health
+    healthCheckTimeout: 5
+    healthCheckInterval: 5
+
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DEBUG
+        value: "false"
+
+      # Database connection - set by Render PostgreSQL add-on
+      - key: DATABASE_URL
+        fromService:
+          type: db
+          name: paypruf-db
+          property: connectionString
+
+      # Frontend URL (populated after frontend deploys)
+      - key: FRONTEND_URL
+        fromService:
+          type: static
+          name: paypruf-frontend
+          property: url
+      - key: PUBLIC_APP_URL
+        fromService:
+          type: static
+          name: paypruf-frontend
+          property: url
+
+      # CORS - allow the frontend domain
+      - key: CORS_ORIGINS
+        value: "${FRONTEND_URL}"
+
+      # API routes
+      - key: API_V1_STR
+        value: /api/v1
+
+      # Mock mode (no external API keys needed yet)
+      - key: OCR_PROVIDER
+        value: rapidocr
+      - key: WEMA_PROVIDER_MODE
+        value: mock
+
+      # Security secrets (auto-generated initially)
+      - key: SECRET_KEY
+        generate: true
+      - key: JWT_SECRET
+        generate: true
+
+      # Optional: real Wema/OCR credentials (leave empty for now)
+      - key: GEMINI_API_KEY
+        value: ""
+      - key: NVIDIA_API_KEY
+        value: ""
+
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+
+  # ============================================================
+  # FRONTEND: Static Site (Docker + nginx)
+  # Source: ./frontend/ (relative to repo root)
+  # Build: npm ci && npm run build
+  # Serve: nginx serving ./dist/
+  # ============================================================
+  - type: static
+    name: paypruf-frontend
+    env: docker
+    plan: free
+    dockerfilePath: ./frontend/Dockerfile
+    buildContext: .
+    rootDir: ./frontend   # Not needed for Docker type, but kept for reference
+    autoDeploy: true
+
+    envVars:
+      # The backend URL is used by the frontend to call the API
+      - key: VITE_API_BASE_URL
+        fromService:
+          type: web
+          name: paypruf-backend
+          property: url
+      - key: OCR_PROVIDER
+        value: rapidocr
+      - key: WEMA_PROVIDER_MODE
+        value: mock
+
+# ============================================================
+# DATABASE: PostgreSQL add-on
+# Render will auto-create this when you add it via dashboard,
+# OR it will be provisioned automatically if using the render.yaml
+# with "render deploy" CLI command.
+# ============================================================
+databases:
+  - name: paypruf-db
+    plan: free

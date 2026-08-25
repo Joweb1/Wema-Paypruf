@@ -1,0 +1,20 @@
+# .dockerignore for frontend Dockerfile (build context = repo root)
+# This prevents copying unnecessary files into the Docker build context
+
+fastapi-backend
+backend
+backend-data
+data/uploads
+*.log
+.git
+.github
+docs
+.env
+.env.local
+.env.*.local
+.gitignore
+Dockerfile
+docker-compose*.yml
+render.yaml
+README.md
+TECHNICAL_README.md
