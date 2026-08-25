@@ -62,7 +62,7 @@ services:
     autoDeploy: true
     envVars:
       - key: VITE_API_BASE_URL
-        value: https://paypruf-backend.onrender.com
+        value: https://paypruf-backend.onrender.com/api/v1
       - key: OCR_PROVIDER
         value: rapidocr
       - key: WEMA_PROVIDER_MODE
