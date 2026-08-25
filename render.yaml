@@ -61,6 +61,8 @@ services:
   # ============================================================
   # FRONTEND: Docker + Nginx Web Service
   # Build: node build → nginx serve static files
+  # VITE_API_BASE_URL is injected at BUILD TIME via dockerArgs
+  # so the frontend JS knows where to call the backend API.
   # ============================================================
   - type: web
     name: paypruf-frontend
@@ -69,12 +71,10 @@ services:
     dockerfilePath: ./frontend/Dockerfile
     buildContext: .
     autoDeploy: true
-    envVars:
+    dockerArgs:
       - key: VITE_API_BASE_URL
-        fromService:
-          type: web
-          name: paypruf-backend
-          property: url
+        value: https://paypruf-backend.onrender.com
+    envVars:
       - key: OCR_PROVIDER
         value: rapidocr
       - key: WEMA_PROVIDER_MODE
