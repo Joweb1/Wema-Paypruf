@@ -62,8 +62,8 @@ services:
     dockerfilePath: ./frontend/Dockerfile
     dockerContext: .
     autoDeploy: true
-    dockerArgs:
-      - key: VITE_API_BASE_URL
+    dockerBuildArgs:
+      - name: VITE_API_BASE_URL
         value: https://paypruf-backend.onrender.com
     envVars:
       - key: OCR_PROVIDER
