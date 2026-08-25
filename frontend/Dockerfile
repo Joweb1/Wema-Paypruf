@@ -1,7 +1,6 @@
 # Build stage - Node
 FROM node:20-alpine AS builder
 
-# Set working directory (inside container)
 WORKDIR /app
 
 # Copy package files from frontend directory
@@ -10,6 +9,10 @@ RUN npm ci
 
 # Copy source code from frontend directory
 COPY frontend/ .
+
+# Pass build arguments for Vite
+ARG VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 # Build the production bundle
 RUN npm run build
@@ -26,8 +29,6 @@ COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 # Copy built app from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Expose port
 EXPOSE 80
 
-# Start nginx
 CMD ["nginx", "-g", "daemon off;"]

@@ -14,19 +14,19 @@ RUN apt-get update && apt-get install -y \
 COPY fastapi-backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend source code
-COPY fastapi-backend/app ./app
-COPY fastapi-backend/data ./data
+# Copy all code from backend directory (including alembic, app, data, etc.)
+COPY fastapi-backend/ .
 
 # Create necessary directories
 RUN mkdir -p data/uploads
 
-# Expose port
-EXPOSE 8000
+# Set default port if PORT env var is not set by host
+ENV PORT=8000
+EXPOSE ${PORT}
 
 # Environment variables
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Run the application
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run Uvicorn bound to dynamic $PORT
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT}
