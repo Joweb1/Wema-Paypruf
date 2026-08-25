@@ -3,7 +3,7 @@
 ## Team Members
 - Uroh Jonadab
 - Emmanuel
-- [Add remaining team member]
+- Akinsiku Temiloluwa Naomi
 
 ---
 
