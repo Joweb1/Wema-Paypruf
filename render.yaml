@@ -17,36 +17,34 @@ services:
         value: production
       - key: DEBUG
         value: "false"
+
+      # FIX: Use fromDatabase to link the PostgreSQL instance
       - key: DATABASE_URL
-        fromService:
-          type: db
+        fromDatabase:
           name: paypruf-db
           property: connectionString
+
+      # FIX: Hardcode the frontend URLs since fromService doesn't support 'url'
       - key: FRONTEND_URL
-        fromService:
-          type: web
-          name: paypruf-frontend
-          property: url
+        value: https://paypruf-frontend.onrender.com
       - key: PUBLIC_APP_URL
-        fromService:
-          type: web
-          name: paypruf-frontend
-          property: url
+        value: https://paypruf-frontend.onrender.com
       - key: CORS_ORIGINS
-        fromService:
-          type: web
-          name: paypruf-frontend
-          property: url
+        value: https://paypruf-frontend.onrender.com
+
       - key: API_V1_STR
         value: /api/v1
       - key: OCR_PROVIDER
         value: rapidocr
       - key: WEMA_PROVIDER_MODE
         value: mock
+
+      # FIX: Use generateValue instead of generate
       - key: SECRET_KEY
-        generate: true
+        generateValue: true
       - key: JWT_SECRET
-        generate: true
+        generateValue: true
+
       - key: GEMINI_API_KEY
         value: ""
       - key: NVIDIA_API_KEY
