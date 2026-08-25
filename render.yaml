@@ -30,7 +30,7 @@ services:
       - key: PUBLIC_APP_URL
         value: https://paypruf-frontend.onrender.com
       - key: CORS_ORIGINS
-        value: https://paypruf-frontend.onrender.com
+        value: '["https://paypruf-frontend.onrender.com"]'
 
       - key: API_V1_STR
         value: /api/v1
