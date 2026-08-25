@@ -62,10 +62,9 @@ services:
     dockerfilePath: ./frontend/Dockerfile
     dockerContext: .
     autoDeploy: true
-    dockerBuildArgs:
-      - name: VITE_API_BASE_URL
-        value: https://paypruf-backend.onrender.com
     envVars:
+      - key: VITE_API_BASE_URL
+        value: https://paypruf-backend.onrender.com
       - key: OCR_PROVIDER
         value: rapidocr
       - key: WEMA_PROVIDER_MODE
