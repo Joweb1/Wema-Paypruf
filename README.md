@@ -2,16 +2,16 @@
 
 ## Team Members
 - Uroh Jonadab
-- Emmanuel
+- Emmanuel Abisola
 - Akinsiku Temiloluwa Naomi
 
 ---
 
 ## 🚀 Live Demo
 
-- **Live Application:** [Add deployed application URL]
-- **Backend API:** [Add live backend API URL]
-- **Recorded Demo:** [Add Loom/demo video URL]
+- **Live Application:** https://paypruf-frontend.onrender.com
+- **Backend API:** https://paypruf-backend.onrender.com/docs
+- **Recorded Demo:** https://www.loom.com/share/a3c816df54e54532b8e9d71aa92f7db2
 
 ---
 
@@ -61,8 +61,8 @@ PayPruf also includes a **customer fraud-reporting feature**, allowing users to 
 ### 1. Clone the repository
 
 ```bash
-git clone [your-repository-url]
-cd paypruf
+git clone https://github.com/Joweb1/Wema-Paypruf.git
+cd Wema-Paypruf
 ```
 
 ### 2. Start the FastAPI backend
