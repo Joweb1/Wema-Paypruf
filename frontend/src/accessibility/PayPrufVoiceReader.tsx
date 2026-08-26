@@ -12,12 +12,14 @@ import {
   AlertCircle,
   Bell,
   Cpu,
+  X,
 } from "lucide-react";
 import { usePayPrufVoice } from "../hooks/usePayPrufVoice";
 
 export function PayPrufVoiceReader() {
   const location = useLocation();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
 
   const {
     status,
@@ -62,7 +64,46 @@ export function PayPrufVoiceReader() {
     }
   };
 
+  const handleHide = () => {
+    setIsHidden(true);
+  };
+
   const speedOptions = [0.8, 1.0, 1.2, 1.5];
+
+  // Floating audio button when voice reader is hidden
+  if (isHidden) {
+    return (
+      <>
+        <button
+          id="paypruf-voice-reader-float-btn"
+          type="button"
+          onClick={() => setIsHidden(false)}
+          style={{
+            position: "fixed",
+            bottom: "20px",
+            right: 0,
+            zIndex: 9999,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "48px",
+            height: "48px",
+            background: "var(--brand, #7b2583)",
+            color: "#ffffff",
+            border: "none",
+            borderRadius: "24px 0 0 24px", // Left side fully curved, right side not curved
+            cursor: "pointer",
+            boxShadow: "none",
+            transition: "all 0.2s ease",
+          }}
+          title="Open Voice Reader"
+          aria-label="Open Voice Reader"
+        >
+          <Volume2 size={20} />
+        </button>
+      </>
+    );
+  }
 
   return (
     <aside
@@ -195,6 +236,30 @@ export function PayPrufVoiceReader() {
               <span title="English fallback voice with Nigerian phonetic normalization">En Voice</span>
             )}
           </div>
+
+          {/* Hide Button */}
+          <button
+            id="voice-reader-hide-btn"
+            type="button"
+            onClick={handleHide}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "32px",
+              height: "32px",
+              background: "transparent",
+              color: isPlaying ? "#ffffff" : "var(--soft, #796f7d)",
+              border: "none",
+              borderRadius: "6px",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+            title="Hide voice reader"
+            aria-label="Hide voice reader"
+          >
+            <X size={16} />
+          </button>
 
           {/* Toggle Settings */}
           <button
